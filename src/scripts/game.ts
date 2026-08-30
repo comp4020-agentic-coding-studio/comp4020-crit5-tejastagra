@@ -374,6 +374,9 @@ function startLevel(game: Game, level: number, carrySpeed = false): void {
   const multiplier = carrySpeed && game.baseSpeed > 0 ? game.speed / game.baseSpeed : 1;
 
   game.level = level;
+  // Per wall, not per run: it sits beside "wall down" and reads as work done on
+  // the wall in front of you, so carrying it over from the last one is noise.
+  game.broken = 0;
   game.rules = rulesForLevel(level, game.baseRules);
   game.bricks = layoutBricks(game.field, game.rules);
   game.baseSpeed = game.field.height * game.rules.baseSpeed;

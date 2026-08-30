@@ -333,8 +333,13 @@ function drawLives(ctx: CanvasRenderingContext2D): void {
   }
 }
 
+/**
+ * Time on the current wall. The game's own clock keeps running underneath and
+ * is never reset, because every brick's return is timed against it: zeroing it
+ * would bring the whole wall back at once.
+ */
 function clock(): string {
-  const total = Math.floor(game.clock / 1000);
+  const total = Math.max(0, Math.floor((game.clock - game.levelStartedAt) / 1000));
   return `${Math.floor(total / 60)}:${String(total % 60).padStart(2, "0")}`;
 }
 

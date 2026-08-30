@@ -145,6 +145,34 @@ describe("play ends somewhere", () => {
     expect(game.bricks.every(isSolid), "the new wall did not go up whole").toBe(true);
   });
 
+  it("starts the new wall's counters from zero", () => {
+    const game = createGame(FIELD);
+    game.phase = "playing";
+
+    // Smash bricks by actually playing, so `broken` really climbs. Setting
+    // brokenAt by hand leaves the counter at zero and the assertion vacuous,
+    // which is how the first version of this test passed with no reset at all.
+    game.ball.vx = 0;
+    game.ball.vy = -game.speed;
+    game.ball.x = game.bricks[0]!.x + game.bricks[0]!.width / 2;
+    game.ball.y = game.field.height * 0.6;
+    play(game, 600);
+    expect(game.broken, "nothing was smashed, so this proves nothing").toBeGreaterThan(0);
+
+    const carried = game.broken;
+    // The ball may have been lost during that play, which parks the game in
+    // `serving`. Put it back in play so clearing the wall actually registers.
+    game.phase = "playing";
+    for (const brick of game.bricks) brick.brokenAt = game.clock;
+    advance(game, 0.016);
+
+    expect(game.level).toBe(2);
+    expect(
+      game.broken,
+      `the smashed count carried ${carried} over from the last wall, so it reads as work done on this one that was not`,
+    ).toBe(0);
+  });
+
   it("ends in a win when the last wall is cleared", () => {
     const game = createGame(FIELD);
     game.phase = "playing";
