@@ -305,11 +305,14 @@ canvas {
   gap: 1.1rem;
   align-items: center;
   width: auto;
-  text-align: left;
 }
 
+/* Each stat is a label sitting over its value, so the two are centred on each
+   other rather than both flush left, where a short value under a long label
+   reads as drifting off to one side. */
 :root[data-panels="false"] .panel p {
   margin: 0;
+  text-align: center;
 }
 
 :root[data-panels="false"] .panel p:not([data-compact]) {
