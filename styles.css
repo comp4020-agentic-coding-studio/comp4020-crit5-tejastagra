@@ -291,20 +291,21 @@ canvas {
   right: 0;
   left: 0;
   display: flex;
-  gap: 0.5rem;
-  align-items: center;
-  justify-content: space-evenly;
+  align-items: stretch;
   height: 68px;
-  padding: 0 0.5rem;
+  padding: 0 0.4rem;
   pointer-events: none;
 }
 
+/* Each panel takes half the row and each stat inside takes half of that, so
+   the four sit on an even pitch across the screen instead of clustering into
+   two pairs with a hole in the middle. */
 :root[data-panels="false"] .panel {
   position: static;
   display: flex;
-  gap: 1.1rem;
   align-items: center;
   width: auto;
+  flex: 1;
 }
 
 /* Each stat is a label sitting over its value, so the two are centred on each
@@ -313,6 +314,17 @@ canvas {
 :root[data-panels="false"] .panel p {
   margin: 0;
   text-align: center;
+}
+
+/* Equal share of the row, with a hairline between neighbours. The first stat
+   opens the row so it carries no rule on its left. */
+:root[data-panels="false"] .panel p[data-compact] {
+  flex: 1;
+  border-left: 1px solid #c3c3c3;
+}
+
+:root[data-panels="false"] .panel-left p:first-of-type {
+  border-left: 0;
 }
 
 :root[data-panels="false"] .panel p:not([data-compact]) {
