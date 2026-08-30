@@ -2,38 +2,36 @@
 
 ## What I built
 
-Brick Breaker Remastered is a brick breaker where the wall grows back while
-you are still breaking it. I picked it because Brick Breaker came on my first
-phone, a BlackBerry Bold, and I wanted the look to come from that instead of
-from whatever an agent reaches for on its own. The first version came back as a dark
-glowing canvas thing that could have been any browser game from the last five
-years, so I gave it a screenshot of the real one and made it start again
+Brick Breaker Remastered is the old paddle and ball game with one change:
+smashed bricks come back. Break one and it rebuilds a while later, so you have
+to take the whole wall down in a burst.
+
+Brick Breaker came on my first phone, a BlackBerry Bold, and I wanted the look
+taken from that rather than from whatever a coding agent produces on its own.
+Its first attempt could have been any browser game of the last five years, so I
+gave it a screenshot of the real one and made it start again
 ([18febe3](https://github.com/comp4020-agentic-coding-studio/comp4020-crit5-tejastagra/commit/18febe3)).
 
 ## The moments that mattered
 
-**A game nobody could win.** Every test passed. The regrow rule was pinned to
-the millisecond and green, and the game was still impossible: the ball breaks
-about half a brick a second, so twelve of them were never going to be down
-together inside an eleven second regrow. I had tested the rules without once
-asking whether the rules added up to a game. Instead of guessing at new numbers
-I had it write a script that plays the real rules against a fake player with a
-slow hand and a reaction delay, and tuned against that
+**A game nobody could win.** All my tests passed. They checked a smashed brick
+returns at the right moment, which it did, and the game was still impossible:
+the ball only breaks about half a brick a second, so all twelve were never going
+to be down at once. I had tested the rules without asking whether they made a
+game worth playing. Rather than guess at better timings I had the agent write a
+script that plays the game against a pretend player with a slow hand, and tuned
+against what it reported
 ([06a2509](https://github.com/comp4020-agentic-coding-studio/comp4020-crit5-tejastagra/commit/06a2509)).
 
-**Then I trusted that script too quickly.** Two things were wrong with it. The
-field size was written into it as 620x880, and when we changed the game to draw
-at a third of the screen's resolution the real field became 206x293, so the
-script had been quietly playing a differently shaped game to the one I was
-shipping. The second was easier to miss. I was only reading the win rate off it
-and that looked survivable, but when I made it also report how far a losing run
-got, an average player turned out to be breaking eleven of the twelve bricks and
-then losing, every single time. Always one short is a rigged game rather than a
-hard one
+**Then I trusted that script too quickly.** The size of the play area was typed
+into it by hand and we had since shrunk the real one, so it played a differently
+shaped game to the one I shipped. I was also reading one number off it, how often
+the pretend player won. When I made it report how far the lost games got, an
+ordinary player was smashing eleven bricks of twelve and then dying, every time.
+Always one short feels rigged rather than hard
 ([448fb30](https://github.com/comp4020-agentic-coding-studio/comp4020-crit5-tejastagra/commit/448fb30)).
 
 **Playing it myself found what neither caught.** I paused mid game, slid the
-paddle under the ball and unpaused. Free save every time. I reported it, then
-made it put the bug back and show me the new test going red before I accepted
-the fix
+paddle under the ball and unpaused. A free save. I reported it, then made the
+agent put the bug back and show me the new test failing before I accepted a fix
 ([5b49a07](https://github.com/comp4020-agentic-coding-studio/comp4020-crit5-tejastagra/commit/5b49a07)).
