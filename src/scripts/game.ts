@@ -37,6 +37,8 @@ export interface Rules {
   regrowFadeMs: number;
   /** After losing a ball, how long the next one rests on the paddle before it goes. */
   serveDelayMs: number;
+  /** The beat between walls, long enough to read which one you have reached. */
+  levelBreakMs: number;
   /** Ball speed in field heights per second, so it feels the same at any size. */
   baseSpeed: number;
   /** Every brick nudges the speed up. The skill has to sharpen with it. */
@@ -67,6 +69,7 @@ export const DEFAULT_RULES: Rules = {
   regrowMs: 44_000,
   regrowFadeMs: 700,
   serveDelayMs: 900,
+  levelBreakMs: 2000,
   baseSpeed: 0.55,
   speedGain: 1.012,
   maxSpeedMultiplier: 1.35,
@@ -379,7 +382,9 @@ function startLevel(game: Game, level: number, carrySpeed = false): void {
     game.baseSpeed * game.rules.maxSpeedMultiplier,
   );
   game.levelStartedAt = game.clock;
-  game.serveAt = game.clock + game.rules.serveDelayMs;
+  // A new wall gets a longer hold than a lost ball does, so the card naming it
+  // has time to be read before anything is in play.
+  game.serveAt = game.clock + game.rules.levelBreakMs;
   game.phase = "serving";
   restBallOnPaddle(game);
 }

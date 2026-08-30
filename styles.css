@@ -308,23 +308,29 @@ canvas {
   fill: #b4b4b4;
 }
 
-/* Names the wall you have just reached. Reports what happened, the way the
-   ending does, so it is not an instruction. */
+/* Names the wall you have reached, across the whole field, with play held
+   behind it. Reports what happened, the way the ending does, so it is not an
+   instruction. */
 .banner {
   position: absolute;
-  top: calc(var(--field-top) + var(--field-height) * 0.32);
+  top: var(--field-top);
   left: var(--field-left);
   z-index: 1;
+  display: grid;
   width: var(--field-width);
+  height: var(--field-height);
   margin: 0;
-  font-size: 1.5rem;
+  font-size: clamp(1.6rem, 5vw, 2.4rem);
   font-weight: 700;
-  letter-spacing: 0.16em;
+  letter-spacing: 0.2em;
   color: var(--ink);
   text-align: center;
+  text-indent: 0.2em;
   text-transform: uppercase;
+  background: rgb(198 198 198 / 88%);
   opacity: 0;
-  transition: opacity 160ms ease;
+  transition: opacity 140ms ease;
+  place-content: center;
   pointer-events: none;
 }
 

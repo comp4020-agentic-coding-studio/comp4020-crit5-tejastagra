@@ -506,16 +506,20 @@ function draw(now: number): void {
   ctx.restore();
 }
 
-/** Says which wall you have just reached, briefly. */
-function showBanner(text: string, now: number): void {
+/**
+ * The card that names the wall you have reached. Timed off the game clock
+ * rather than the wall clock, so pausing holds it too, and sized to the field
+ * so it reads as a beat in the game rather than a notice on the page.
+ */
+function showBanner(text: string): void {
   if (!banner) return;
   banner.textContent = text;
   banner.dataset.shown = "true";
-  bannerUntil = now + 1500;
+  bannerUntil = game.clock + game.rules.levelBreakMs;
 }
 
-function tickBanner(now: number): void {
-  if (!banner || bannerUntil === 0 || now < bannerUntil) return;
+function tickBanner(): void {
+  if (!banner || bannerUntil === 0 || game.clock < bannerUntil) return;
   bannerUntil = 0;
   banner.dataset.shown = "false";
 }
@@ -557,7 +561,7 @@ function frame(timestamp: number): void {
   if (result.lostLife) shake = 9;
   if (result.levelUp) {
     shake = 5;
-    showBanner(`Level ${game.level}`, timestamp);
+    showBanner(`Level ${game.level}`);
   }
   shake *= 0.88;
   if (shake < 0.05) shake = 0;
@@ -572,7 +576,7 @@ function frame(timestamp: number): void {
   }
 
   announce();
-  tickBanner(timestamp);
+  tickBanner();
   syncControls();
   syncStats();
   draw(timestamp);
@@ -598,7 +602,7 @@ function onPointer(event: PointerEvent): void {
     if (event.type === "pointerdown") {
       restart(game);
       announce();
-      showBanner(`Level ${game.level}`, performance.now());
+      showBanner(`Level ${game.level}`);
       syncControls();
     }
     return;
@@ -648,7 +652,7 @@ function setup(): void {
   newGameButton?.addEventListener("click", () => {
     restart(game);
     announce();
-    showBanner(`Level ${game.level}`, performance.now());
+    showBanner(`Level ${game.level}`);
     syncControls();
   });
 
