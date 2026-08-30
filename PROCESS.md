@@ -1,70 +1,36 @@
 # Process overview
 
-<!-- TEMPLATE: this file is a shape to fill in, not a form. Replace everything
-     in it with your own overview, and delete this comment — `pnpm
-     check:evidence` will remind you if it's still here. -->
-
-A reading-guide to how the work came together --- a map to your process, not an
-essay about it. Markers read this file and follow its citations; they don't
-trawl the repo for evidence you didn't point at, so if a moment mattered, cite
-it.
-
-This file is the shape; the course site's
-[assessment page](https://comp.anu.edu.au/courses/comp4020-agentic-coding-studio/topics/assessment/#what-you-submit)
-is the requirement, and its
-[word counts](https://comp.anu.edu.au/courses/comp4020-agentic-coding-studio/topics/assessment/#word-counts)
-cover every deliverable.
-
 ## What I built
 
-One paragraph: the thing, and the idea behind it.
+Overgrow is a brick breaker whose wall grows back, so an even chip away can
+never have the whole wall down at once. It came from the Brick Breaker on my
+first phone, a BlackBerry Bold, and the look is taken from that: a stone wall,
+hazard rails, outlined bricks, a blue paddle. The field is drawn into a buffer a
+third of the screen's size and magnified with smoothing off, because styling
+alone leaves antialiased curves underneath
+([18febe3](https://github.com/comp4020-agentic-coding-studio/comp4020-crit5-tejastagra/commit/18febe3)).
 
 ## The moments that mattered
 
-Three or four for an assignment; fewer is fine for a weekly prototype. Keep the
-list short so each moment has room to do all four jobs:
+**A game every test approved of and nobody could win.** My spec tests pinned the
+regrow rule to the millisecond and passed, while the game was impossible: a ball
+breaks about half a brick a second, so twelve could never be down at once inside
+an eleven second regrow. Tests check the rules. Nothing checked whether
+the rules made a game. Rather than guess at new numbers I wrote a check that
+plays the real rules against a simulated player with a limited hand speed and a
+reaction delay, then swept the tuning against it. It stays out of `pnpm check`
+deliberately, because it is slow and random and a flaky red check trains you to
+ignore red checks
+([06a2509](https://github.com/comp4020-agentic-coding-studio/comp4020-crit5-tejastagra/commit/06a2509)).
 
-1. **what happened** --- the problem, or the thing that went wrong
-2. **what you did instead of the obvious thing** --- the call you made, and why
-   it beat the obvious one
-3. **how you knew it was right** --- the check you ran, the viewport you looked
-   at, what you read before accepting the diff
-4. **the citation** --- a commit or commit range, a `CLAUDE.md` change, a check
-   that went from red to green, a prompt paired with the commit it produced
+**Keeping that sensor honest.** It was still measuring a 620x880 field after the
+renderer moved to low resolution, so it reported on a game that no longer ships.
+Win rate hid the real fault too. Measuring how close losing runs got exposed it:
+an average player reached eleven of twelve bricks and lost eight times out of
+eight, which reads as rigged rather than hard
+([448fb30](https://github.com/comp4020-agentic-coding-studio/comp4020-crit5-tejastagra/commit/448fb30)).
 
-Jobs 2 and 3 are the ones the repo can't tell a reader on its own, so they're
-where the marks are. The strongest moments are the ones where a correction
-landed in the **harness** --- the standards and checks your work has to satisfy
---- rather than in a retry: a rule added to `CLAUDE.md`, a check wired up, an
-attempt thrown away. Retrying until it passes is the routine case, and changing
-what the work runs against is the skilled one.
-
-Cite each moment as a link whose text is the commit hash or range and whose
-target is this repo's commit or compare URL, so a reader clicks straight to the
-evidence:
-
-- one commit: [`a1b2c3d`](https://github.com/YOUR-ORG/YOUR-REPO/commit/a1b2c3d)
-- a range:
-  [`a1b2c3d...e4f5a6b`](https://github.com/YOUR-ORG/YOUR-REPO/compare/a1b2c3d...e4f5a6b)
-
-To pair a prompt with the commit it produced, quote the prompt (curated, not a
-full transcript) next to the citation:
-
-> the prompt, verbatim
-
-Screenshots are welcome where one carries the verification better than a
-sentence does. Commit the file to this repo and link it with a **relative**
-path, which is what makes it render on GitHub: `![alt text](docs/before.png)`.
-Images don't count towards the word count and don't replace the citation.
-
-## Before you ship
-
-`pnpm check:evidence` verifies your citations resolve to real commits, that a
-reflection entry the marker reads is in `reflections/`, and that your
-`CLAUDE.md` is there --- before a marker ever opens the file. It checks that
-your map is traceable, not that it is good: the marker judges whether your
-small, deliberately chosen set of moments shows real judgement and reflection. A
-green check is not a substitute for that curation.
-
-Images aren't checked: unlike a citation whose SHA doesn't resolve, a broken
-image is visible the moment this file is rendered on GitHub.
+**Playing it found what neither could.** Pausing still let me slide the paddle
+under the ball, and clearing a wall made the ball slower. I put both faults back
+deliberately and watched the new tests fail before trusting the fixes
+([5b49a07](https://github.com/comp4020-agentic-coding-studio/comp4020-crit5-tejastagra/commit/5b49a07)).

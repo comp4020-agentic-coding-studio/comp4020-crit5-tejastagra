@@ -104,6 +104,61 @@ tests were no better, asserting `aria-pressed` values that are already in the
 static markup. Watch for that specifically: an assertion satisfied by the source
 HTML proves nothing.
 
+## A green suite is not a good artefact
+
+Tests know what the code was supposed to do. They have no opinion on whether the
+result is worth using. When the real question is "is this usable, winnable,
+readable, fast enough", write a second kind of check that exercises the built
+thing end to end against a simulated user and reports what happened, then tune
+against its output instead of guessing.
+
+Keep that check OUT of `pnpm check` when it is slow or random. A flaky red check
+trains both of us to ignore red checks, which costs more than the check is
+worth. Give it its own script and run it deliberately when the thing it measures
+changes.
+
+Crit 5: every spec test passed, pinning the rules to the millisecond, while the
+game was arithmetically impossible to win. Nothing in the repo had ever asked
+whether the rules made a game.
+
+## Re-point a sensor when the artefact changes shape
+
+A sensor measuring something the project no longer is, is worse than no sensor,
+because it reports green with confidence. Any check that hard-codes the
+artefact's dimensions, units, routes or field names is a copy of the truth that
+goes stale silently the moment the real thing moves.
+
+When units or geometry change, read the real values back off the running thing
+and update every check that named the old ones. Grep for the old numbers.
+
+The same applies to any absolute floor or ceiling, such as `Math.max(5, …)`.
+A clamp written in one unit silently becomes the binding value in another.
+
+Crit 5: the renderer moved to a buffer a third of the screen's size, so the
+field went from 620x880 to 206x293. Both the design sensor and the spec tests
+carried on measuring 620x880, and pixel floors written for screen pixels became
+the binding value at every size, which made the phone a materially different
+game from the desktop one at a viewport that is equally marked.
+
+## Measure the near miss, not just pass or fail
+
+A pass/fail metric hides the difference between "nearly" and "nowhere near",
+and those want opposite fixes. Whenever a check reports a rate, also report how
+close the failures came.
+
+Crit 5: win rate called a tuning acceptable. Peak progress in losing runs showed
+the player reaching eleven of twelve every single time and still losing, which
+reads as rigged rather than hard. The rate could never have shown that.
+
+## Put a state guard in the rules, not the handler
+
+When some state must block an action, guard it where the action is defined
+rather than at each call site. Every caller then gets it for free, and a test
+can prove it without driving a browser.
+
+Crit 5: pausing froze the ball but the input handler still steered the paddle,
+so pause was a free save. The fix belonged in the rule that moves the paddle.
+
 ## Look up the word count before writing
 
 Before writing PROCESS.md, a reflection or any assessed prose, fetch the course
