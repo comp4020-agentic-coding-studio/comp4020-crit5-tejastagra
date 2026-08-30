@@ -7,33 +7,43 @@ import "../../styles.css";
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>COMP4020 prototype</title>
+    <title>Overgrow</title>
     <meta
       name="description"
-      content="Replace this with one sentence saying what this page is. A search result and a link preview both show it."
+      content="A brick breaker where the wall grows back. Chipping away evenly never finishes it, so the only way out is above."
     />
 
     <!--
-      The link-preview card: public/card.png, 1200x630 --- replace it. The URL
-      resolves against this page, like any link. No og:title/og:description:
-      scrapers fall back to the <title> and description above.
+      The link-preview card: public/card.png, 1200x630. The URL resolves against
+      this page, like any link. No og:title/og:description: scrapers fall back
+      to the <title> and description above.
     -->
     <meta property="og:type" content="website" />
     <meta property="og:image" content={`${import.meta.env.BASE_URL}/card.png`} />
     <meta name="twitter:card" content="summary_large_image" />
   </head>
   <body>
-    <header>
-      <nav aria-label="Primary">
-        <a href={import.meta.env.BASE_URL}>Home</a>
-      </nav>
-    </header>
+    <!--
+      The brief bans instructions, not landmarks. This nav is the navigation
+      landmark the invariants require, kept off the play surface because a
+      single-screen game has nowhere to send you and any visible chrome over
+      the canvas would be one more thing between a stranger and their first move.
+    -->
+    <nav aria-label="Primary" class="offscreen">
+      <a href={import.meta.env.BASE_URL}>Home</a>
+    </nav>
+
     <main>
-      <h1>COMP4020 prototype</h1>
-      <p data-testid="intro">
-        Replace this with your prototype. This week's brief is on the course website;
-        <code>spec/README.md</code> explains how the checks in this repo relate to it.
-      </p>
+      <h1 class="nameplate">Overgrow</h1>
+      <canvas id="play"></canvas>
+      <div class="outcome" data-outcome-panel data-shown="false">
+        <p class="outcome-word" data-testid="outcome" aria-live="polite"></p>
+        <span class="replay" aria-hidden="true">&#8635;</span>
+      </div>
     </main>
+
+    <script>
+      import "../scripts/main.ts";
+    </script>
   </body>
 </html>
