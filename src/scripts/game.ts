@@ -49,11 +49,22 @@ export const DEFAULT_RULES: Rules = {
   rows: 3,
   lives: 4,
   levels: 2,
-  // 11s was the first guess and it made the wall mathematically unclearable:
-  // a single ball breaks about 0.56 bricks a second, so twelve of them inside
-  // one regrow window needs a good deal longer than eleven seconds. Swept
-  // against a simulated player with a finite hand speed and a reaction delay.
-  regrowMs: 22_000,
+  // Swept against a simulated player with a finite hand speed and a reaction
+  // delay, three times over.
+  //
+  // 11s made the wall mathematically unclearable: a ball breaks roughly half a
+  // brick a second, so twelve of them inside one window needs far longer.
+  //
+  // 22s looked fine on win rate alone, but the near-miss numbers gave it away:
+  // an average player peaked at eleven of twelve bricks down and still lost
+  // eight times out of eight. One brick short every time reads as a rigged
+  // game rather than a hard one, and it left running out of balls as the only
+  // ending most players ever saw.
+  //
+  // 44s is where both endings are live at both marked viewports: a sharp
+  // player clears it, an average one wins something like a third to a half of
+  // the time, and a careless one almost never does.
+  regrowMs: 44_000,
   regrowFadeMs: 700,
   serveDelayMs: 900,
   baseSpeed: 0.55,
@@ -197,7 +208,11 @@ export function createPaddle(field: Field): Paddle {
     x: field.width / 2 - width / 2,
     y: field.height * 0.9,
     width,
-    height: Math.max(6, field.height * 0.016),
+    // The floors are in game pixels, which are a third the size of a screen
+    // pixel. A floor of 6 here was written when these were screen pixels and
+    // silently became the binding value at every size, which made the paddle a
+    // different fraction of the field on a phone than on a desktop.
+    height: Math.max(3, field.height * 0.016),
   };
 }
 
@@ -220,7 +235,7 @@ export function createGame(
       y: paddle.y - Math.max(5, field.height * 0.011),
       vx: 0,
       vy: 0,
-      radius: Math.max(5, field.height * 0.011),
+      radius: Math.max(2, field.height * 0.011),
     },
     lives: rules.lives,
     level: 1,
@@ -259,7 +274,7 @@ export function resize(game: Game, field: Field): void {
 
   game.paddle = createPaddle(field);
   game.paddle.x = clamp(paddleFraction * field.width, 0, field.width - game.paddle.width);
-  game.ball.radius = Math.max(5, field.height * 0.011);
+  game.ball.radius = Math.max(2, field.height * 0.011);
   game.ball.x = ballFraction.x * field.width;
   game.ball.y = ballFraction.y * field.height;
   if (moving) {
