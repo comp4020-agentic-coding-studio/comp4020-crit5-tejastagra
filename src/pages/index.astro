@@ -76,22 +76,33 @@ import "../../styles.css";
         comes out as magnified antialiasing and is barely readable. Real text
         stays crisp, and a screen reader can reach it.
       -->
-      <aside class="panel panel-left" data-panel aria-label="Run">
-        <p><span>Level</span><b data-stat="level">1/2</b></p>
-        <p><span>Time</span><b data-stat="time">0:00</b></p>
-        <p><span>Tiles smashed</span><b data-stat="broken">0</b></p>
-        <p><span>Lives</span><b class="hearts" data-stat="lives"></b></p>
-      </aside>
+      <!--
+        One wrapper so the same stats can be two columns beside the field on a
+        desktop and a single strip across the top on a phone, without the
+        renderer having to keep two copies of anything in sync. `data-compact`
+        marks the ones worth the room on a small screen; `data-short` carries a
+        label that fits when the full one does not.
+      -->
+      <div class="panels">
+        <aside class="panel panel-left" data-panel aria-label="Run">
+          <p data-compact><span>Level</span><b data-stat="level">1/2</b></p>
+          <p data-compact><span>Time</span><b data-stat="time">0:00</b></p>
+          <p><span>Tiles smashed</span><b data-stat="broken">0</b></p>
+          <p><span>Lives</span><b class="hearts" data-stat="lives"></b></p>
+        </aside>
 
-      <aside class="panel panel-right" data-panel aria-label="Wall">
-        <p><span>Tiles down</span><b data-stat="down">0/12</b></p>
-        <p>
-          <span>Next one back</span>
-          <i class="meter"><i class="meter-fill" data-stat="next"></i></i>
-        </p>
-        <p><span>Smashed tiles come back in</span><b data-stat="regrow">22s</b></p>
-        <p data-stat="best-row" hidden><span>Best</span><b data-stat="best">—</b></p>
-      </aside>
+        <aside class="panel panel-right" data-panel aria-label="Wall">
+          <p data-compact data-short="Down"><span>Tiles down</span><b data-stat="down">0/12</b></p>
+          <p>
+            <span>Next one back</span>
+            <i class="meter"><i class="meter-fill" data-stat="next"></i></i>
+          </p>
+          <p data-compact data-short="Back in">
+            <span>Smashed tiles come back in</span><b data-stat="regrow">22s</b>
+          </p>
+          <p data-stat="best-row" hidden><span>Best</span><b data-stat="best">—</b></p>
+        </aside>
+      </div>
 
       <!-- Cloned once per life by the renderer. Drawn on the same pixel grid
            as the game, so it reads as part of the same thing. -->

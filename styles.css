@@ -278,9 +278,68 @@ canvas {
   background: #c62d1f;
 }
 
-/* No margins to put them in on a phone, where the LCD is the whole screen. */
+/* Wide: the wrapper does nothing and the two panels sit beside the field. */
+.panels {
+  display: contents;
+}
+
+/* Narrow: no margins to sit in, so the stats become one strip across the
+   second row of the bar. Only the ones marked compact earn the room. */
+:root[data-panels="false"] .panels {
+  position: absolute;
+  top: 34px;
+  right: 0;
+  left: 0;
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+  justify-content: space-evenly;
+  height: 40px;
+  padding: 0 0.6rem;
+  pointer-events: none;
+}
+
 :root[data-panels="false"] .panel {
+  position: static;
+  display: flex;
+  gap: 0.9rem;
+  align-items: center;
+  width: auto;
+  text-align: left;
+}
+
+:root[data-panels="false"] .panel p {
+  margin: 0;
+}
+
+:root[data-panels="false"] .panel p:not([data-compact]) {
   display: none;
+}
+
+:root[data-panels="false"] .panel span {
+  font-size: 0.5rem;
+  letter-spacing: 0.1em;
+}
+
+:root[data-panels="false"] .panel b {
+  margin-top: 0;
+  font-size: 0.95rem;
+}
+
+/* The full label does not fit in a phone-width column, so a short one stands
+   in. The long one stays for the desktop panel and for screen readers there. */
+:root[data-panels="false"] .panel p[data-short] span {
+  display: none;
+}
+
+:root[data-panels="false"] .panel p[data-short]::before {
+  display: block;
+  font-size: 0.5rem;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  color: var(--ink-soft);
+  text-transform: uppercase;
+  content: attr(data-short);
 }
 
 @media (prefers-reduced-motion: reduce) {

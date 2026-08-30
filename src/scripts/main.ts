@@ -30,8 +30,17 @@ import type { Brick, Game } from "./game.ts";
 
 const MAX_FIELD_WIDTH = 620;
 const MAX_FIELD_HEIGHT = 880;
-/** Height reserved at the top of the screen for the controls. */
-const BAR_HEIGHT = 44;
+/**
+ * Height reserved at the top of the screen for the controls. On a phone there
+ * is no margin beside the field for the stat panels, and the title and buttons
+ * already fill the bar, so it gains a second row and the stats go across it.
+ */
+const BAR_TALL = 78;
+const BAR_SHORT = 44;
+
+function barHeight(): number {
+  return window.innerWidth < 700 ? BAR_TALL : BAR_SHORT;
+}
 /** Below this much margin beside the field there is no room for a side panel. */
 const PANEL_MIN_MARGIN = 210;
 /**
@@ -131,7 +140,7 @@ function screen(): { width: number; height: number } {
 
 function measure(): { width: number; height: number } {
   const view = screen();
-  const bar = Math.round(BAR_HEIGHT / PIXEL);
+  const bar = Math.round(barHeight() / PIXEL);
   const available = Math.max(1, view.height - bar);
   // The rails are drawn just outside the playable rectangle, so the field has
   // to leave room for them or they fall off the edge of a phone screen, taking
@@ -491,17 +500,17 @@ function draw(now: number): void {
   if (game.paused) {
     ctx.fillStyle = "#c6c6c6d6";
     ctx.fillRect(0, 0, field.width, field.height);
-    const barHeight = Math.max(10, Math.round(field.height * 0.06));
-    const barWidth = Math.max(3, Math.round(barHeight * 0.32));
+    const markHeight = Math.max(10, Math.round(field.height * 0.06));
+    const markWidth = Math.max(3, Math.round(markHeight * 0.32));
     const centreX = Math.round(field.width / 2);
     const centreY = Math.round(field.height / 2);
     for (const direction of [-1, 1]) {
       block(
         ctx,
-        centreX + direction * barWidth - (direction < 0 ? barWidth : 0),
-        centreY - Math.round(barHeight / 2),
-        barWidth,
-        barHeight,
+        centreX + direction * markWidth - (direction < 0 ? markWidth : 0),
+        centreY - Math.round(markHeight / 2),
+        markWidth,
+        markHeight,
         PADDLE_BLUE,
       );
     }
