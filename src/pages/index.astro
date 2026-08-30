@@ -18,6 +18,12 @@ import "../../styles.css";
       this page, like any link. No og:title/og:description: scrapers fall back
       to the <title> and description above.
     -->
+    <!-- A three-row wall, drawn on the same pixel grid as the game. -->
+    <link
+      rel="icon"
+      href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' shape-rendering='crispEdges'%3E%3Crect width='16' height='16' fill='%230a0a0a'/%3E%3Crect x='1' y='2' width='6' height='3' fill='%23e5484d'/%3E%3Crect x='9' y='2' width='6' height='3' fill='%23e5484d'/%3E%3Crect x='1' y='6' width='6' height='3' fill='%23f5a524'/%3E%3Crect x='9' y='6' width='6' height='3' fill='%23f5a524'/%3E%3Crect x='1' y='10' width='6' height='3' fill='%233fae4a'/%3E%3Crect x='12' y='13' width='3' height='2' fill='%23c9ccd4'/%3E%3C/svg%3E"
+    />
+
     <meta property="og:type" content="website" />
     <meta property="og:image" content={`${import.meta.env.BASE_URL}/card.png`} />
     <meta name="twitter:card" content="summary_large_image" />
@@ -62,6 +68,30 @@ import "../../styles.css";
           </svg>
         </button>
       </div>
+
+      <!--
+        The stats live in the DOM rather than on the canvas. The play field is
+        drawn into a deliberately low-resolution buffer and magnified, which is
+        what gives it its chunky edges, but text put through that same pipeline
+        comes out as magnified antialiasing and is barely readable. Real text
+        stays crisp, and a screen reader can reach it.
+      -->
+      <aside class="panel panel-left" data-panel aria-label="Run">
+        <p><span>Level</span><b data-stat="level">1/2</b></p>
+        <p><span>Time</span><b data-stat="time">0:00</b></p>
+        <p><span>Broken</span><b data-stat="broken">0</b></p>
+        <p><span>Balls</span><b data-stat="lives">••••</b></p>
+      </aside>
+
+      <aside class="panel panel-right" data-panel aria-label="Wall">
+        <p><span>Wall down</span><b data-stat="down">0/12</b></p>
+        <p>
+          <span>Next back</span>
+          <i class="meter"><i class="meter-fill" data-stat="next"></i></i>
+        </p>
+        <p><span>Regrow</span><b data-stat="regrow">22s</b></p>
+        <p data-stat="best-row" hidden><span>Best</span><b data-stat="best">—</b></p>
+      </aside>
 
       <canvas id="play"></canvas>
       <div class="outcome" data-outcome-panel data-shown="false">

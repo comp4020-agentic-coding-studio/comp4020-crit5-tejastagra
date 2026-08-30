@@ -1,6 +1,16 @@
 :root {
-  --void: #070b14;
-  --ink: #e8eef7;
+  /* A handheld in daylight: pale plastic shell, green LCD, dark pixels. */
+  --shell: #dfe2d8;
+  --shell-edge: #c3c8ba;
+  --lcd: #c3cdb4;
+  --bezel: #5c6357;
+  --ink: #20241d;
+  --ink-soft: #656c5c;
+  --mono: "Courier New", ui-monospace, monospace;
+  --field-left: 0px;
+  --field-top: 0px;
+  --field-width: 0px;
+  --field-height: 0px;
 }
 
 *,
@@ -17,9 +27,9 @@ body {
 body {
   margin: 0;
   overflow: hidden;
-  font-family: system-ui, sans-serif;
+  font-family: var(--mono);
   color: var(--ink);
-  background: var(--void);
+  background: var(--shell);
   overscroll-behavior: none;
   touch-action: none;
 }
@@ -35,6 +45,7 @@ canvas {
   display: block;
   width: 100%;
   height: 100%;
+  image-rendering: pixelated;
   touch-action: none;
 }
 
@@ -57,10 +68,10 @@ canvas {
   left: 50%;
   z-index: 1;
   margin: 0;
-  font-size: 0.75rem;
-  font-weight: 500;
-  letter-spacing: 0.28em;
-  color: hsl(210deg 40% 80% / 30%);
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.34em;
+  color: var(--ink-soft);
   text-transform: uppercase;
   pointer-events: none;
   transform: translateX(-50%);
@@ -86,11 +97,11 @@ canvas {
   width: 36px;
   height: 36px;
   padding: 0;
-  color: hsl(210deg 45% 88% / 85%);
+  color: var(--ink);
   cursor: pointer;
-  background: hsl(212deg 45% 70% / 12%);
-  border: 1px solid hsl(210deg 45% 75% / 20%);
-  border-radius: 9px;
+  background: var(--shell-edge);
+  border: 1px solid var(--bezel);
+  border-radius: 0;
   place-content: center;
   transition:
     color 160ms ease,
@@ -108,17 +119,17 @@ canvas {
 
 .control:hover,
 .control:focus-visible {
-  color: hsl(38deg 95% 70%);
-  background: hsl(38deg 80% 60% / 22%);
-  border-color: hsl(38deg 85% 65% / 55%);
-  transform: translateY(-1px);
+  color: var(--lcd);
+  background: var(--ink);
+  border-color: var(--ink);
+  transform: none;
 }
 
 .control:disabled {
-  color: hsl(210deg 40% 82% / 30%);
+  color: #a3a99a;
   cursor: default;
-  background: hsl(212deg 45% 70% / 6%);
-  border-color: hsl(210deg 45% 75% / 10%);
+  background: var(--shell);
+  border-color: var(--shell-edge);
   transform: none;
 }
 
@@ -138,9 +149,9 @@ canvas {
 }
 
 .controls[data-paused="true"] .control[data-action="pause"] {
-  color: hsl(38deg 95% 70%);
-  background: hsl(38deg 80% 60% / 26%);
-  border-color: hsl(38deg 85% 65% / 60%);
+  color: var(--lcd);
+  background: var(--ink);
+  border-color: var(--ink);
 }
 
 .outcome {
@@ -151,7 +162,7 @@ canvas {
   place-content: center;
   justify-items: center;
   opacity: 0;
-  transition: opacity 180ms ease;
+  transition: opacity 120ms steps(2, end);
   pointer-events: none;
 }
 
@@ -161,29 +172,29 @@ canvas {
 
 .outcome-word {
   margin: 0;
-  font-size: clamp(1.75rem, 7vw, 2.75rem);
-  font-weight: 600;
-  letter-spacing: 0.02em;
-  text-shadow: 0 0 24px hsl(210deg 60% 20% / 90%);
+  font-size: clamp(1.5rem, 6vw, 2.25rem);
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
 }
 
 .replay {
-  font-size: 2rem;
+  font-size: 1.6rem;
   line-height: 1;
-  color: hsl(38deg 92% 64%);
-  animation: replay-pulse 1.8s ease-in-out infinite;
+  color: var(--ink);
+  animation: replay-pulse 1.2s steps(1, end) infinite;
 }
 
+/* A hard blink rather than a smooth fade: steps(), not easing. */
 @keyframes replay-pulse {
   0%,
-  100% {
-    opacity: 0.5;
-    transform: translateY(0);
+  49% {
+    opacity: 1;
   }
 
-  50% {
-    opacity: 1;
-    transform: translateY(-4px);
+  50%,
+  100% {
+    opacity: 0.15;
   }
 }
 
@@ -195,5 +206,81 @@ canvas {
   .replay {
     animation: none;
     opacity: 0.85;
+  }
+}
+
+/* The stats sit in the shell either side of the LCD, positioned from the
+   custom properties the renderer publishes each layout. pointer-events stay
+   off so a drag that begins out here still steers the paddle. */
+.panel {
+  position: absolute;
+  top: var(--field-top);
+  width: 150px;
+  margin: 0;
+  font-size: 0.75rem;
+  pointer-events: none;
+}
+
+.panel p {
+  margin: 0 0 1.15rem;
+}
+
+.panel span {
+  display: block;
+  font-size: 0.62rem;
+  font-weight: 700;
+  letter-spacing: 0.18em;
+  color: var(--ink-soft);
+  text-transform: uppercase;
+}
+
+.panel b {
+  display: block;
+  margin-top: 0.15rem;
+  font-size: 1.4rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.1;
+  color: var(--ink);
+}
+
+.panel-left {
+  left: calc(var(--field-left) - 150px - 28px);
+  text-align: right;
+}
+
+.panel-right {
+  left: calc(var(--field-left) + var(--field-width) + 28px);
+}
+
+.meter {
+  display: block;
+  width: 100%;
+  height: 9px;
+  margin-top: 0.4rem;
+  background: var(--shell-edge);
+  border: 1px solid var(--bezel);
+}
+
+.meter-fill {
+  display: block;
+  width: 0%;
+  height: 100%;
+  background: #2f7d3a;
+  transition: width 200ms linear;
+}
+
+.meter-fill[data-soon="true"] {
+  background: #c2352f;
+}
+
+/* No margins to put them in on a phone, where the LCD is the whole screen. */
+:root[data-panels="false"] .panel {
+  display: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .meter-fill {
+    transition: none;
   }
 }

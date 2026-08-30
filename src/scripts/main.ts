@@ -34,9 +34,33 @@ const MAX_FIELD_HEIGHT = 880;
 const BAR_HEIGHT = 44;
 /** Below this much margin beside the field there is no room for a side panel. */
 const PANEL_MIN_MARGIN = 210;
+/**
+ * How many screen pixels one game pixel occupies. The whole game is drawn into
+ * a backing store this many times smaller than the screen and then blown up
+ * with smoothing off, so every edge lands on a chunky pixel boundary the way it
+ * did on a 320x240 handset. Faking the look with styling alone leaves
+ * antialiased curves underneath; rendering low and upscaling does not.
+ */
+const PIXEL = 3;
+
+/**
+ * A handheld LCD rather than a backlit screen: a pale green panel with dark
+ * pixels on it. Flat and saturated, no gradients, one hue per row, shifting to
+ * a second set on the second wall.
+ */
+const PALETTES = [
+  ["#c2352f", "#c97f14", "#2f7d3a"],
+  ["#6b3fa0", "#1f5fa8", "#0f7a70"],
+];
+/** The LCD panel the game is played on. */
+const FIELD_BG = "#c3cdb4";
+/** The bezel drawn around it. */
+const BEZEL = "#5c6357";
+const INK = "#20241d";
+const PADDLE_INK = "#3c4238";
+const SLOT = "#8a9578";
 /** Longest frame the physics will accept, so a slow frame cannot teleport the ball. */
 const MAX_FRAME_SECONDS = 1 / 30;
-const TRAIL_LENGTH = 12;
 const BEST_KEY = "overgrow:best";
 
 const canvas = document.querySelector<HTMLCanvasElement>("#play");
@@ -55,7 +79,6 @@ const reducedMotion =
 let game: Game;
 let offsetX = 0;
 let offsetY = 0;
-let trail: Array<{ x: number; y: number }> = [];
 let shake = 0;
 let lastFrame = 0;
 let announced = "";
@@ -87,32 +110,36 @@ function writeBest(value: Best): void {
   }
 }
 
-function ratio(): number {
-  return Math.min(3, window.devicePixelRatio || 1);
+/** Screen size in game pixels. Everything below works in these units. */
+function screen(): { width: number; height: number } {
+  return {
+    width: Math.max(1, Math.floor(window.innerWidth / PIXEL)),
+    height: Math.max(1, Math.floor(window.innerHeight / PIXEL)),
+  };
 }
 
 function measure(): { width: number; height: number } {
-  const cssWidth = Math.max(1, window.innerWidth);
-  const available = Math.max(1, window.innerHeight - BAR_HEIGHT);
-  const width = Math.min(cssWidth, MAX_FIELD_WIDTH);
+  const view = screen();
+  const bar = Math.round(BAR_HEIGHT / PIXEL);
+  const available = Math.max(1, view.height - bar);
+  const width = Math.floor(Math.min(view.width, MAX_FIELD_WIDTH / PIXEL));
   // A phone is far taller than it is wide and a desktop is not, so the field
   // takes what it can get vertically rather than copying the desktop shape.
-  const height = Math.min(available, MAX_FIELD_HEIGHT, width * 2.3);
-  offsetX = (cssWidth - width) / 2;
-  offsetY = BAR_HEIGHT + (available - height) / 2;
+  const height = Math.floor(Math.min(available, MAX_FIELD_HEIGHT / PIXEL, width * 2.3));
+  offsetX = Math.round((view.width - width) / 2);
+  offsetY = bar + Math.round((available - height) / 2);
   return { width, height };
 }
 
 function fitCanvas(): void {
   if (!canvas || !context) return;
-  const scale = ratio();
-  const cssWidth = Math.max(1, window.innerWidth);
-  const cssHeight = Math.max(1, window.innerHeight);
-  canvas.width = Math.round(cssWidth * scale);
-  canvas.height = Math.round(cssHeight * scale);
-  canvas.style.width = `${cssWidth}px`;
-  canvas.style.height = `${cssHeight}px`;
-  context.setTransform(scale, 0, 0, scale, 0, 0);
+  const view = screen();
+  canvas.width = view.width;
+  canvas.height = view.height;
+  canvas.style.width = `${window.innerWidth}px`;
+  canvas.style.height = `${window.innerHeight}px`;
+  context.setTransform(1, 0, 0, 1, 0, 0);
+  context.imageSmoothingEnabled = false;
 }
 
 /** Turns a pointer's page position into a field coordinate, or null if the canvas has no size. */
@@ -120,70 +147,79 @@ function fieldX(event: { clientX: number }): number | null {
   if (!canvas) return null;
   const rect = canvas.getBoundingClientRect();
   if (rect.width === 0) return null;
-  return event.clientX - rect.left - offsetX;
+  return (event.clientX - rect.left) / PIXEL - offsetX;
 }
 
-function hue(row: number): number {
-  // Each level shifts the whole wall round the wheel, so escalation is
-  // something you see rather than something a label tells you.
-  const levelShift = (game.level - 1) * 58;
-  return 168 + (row / Math.max(1, game.rules.rows - 1)) * 82 + levelShift;
+function shade(colour: string, amount: number): string {
+  // Flat colours with a hand-mixed bevel, rather than a gradient: the original
+  // had no gradients anywhere, just a lighter edge and a darker one.
+  const value = Number.parseInt(colour.slice(1), 16);
+  const mix = (channel: number) =>
+    Math.max(0, Math.min(255, Math.round(channel + (amount > 0 ? (255 - channel) : channel) * amount)));
+  const r = mix((value >> 16) & 255);
+  const g = mix((value >> 8) & 255);
+  const b = mix(value & 255);
+  return `rgb(${r} ${g} ${b})`;
+}
+
+function brickColour(row: number): string {
+  const palette = PALETTES[(game.level - 1) % PALETTES.length]!;
+  return palette[row % palette.length]!;
+}
+
+/** A bevelled block: flat fill, one lit edge, one shadowed edge. One pixel each. */
+function block(
+  ctx: CanvasRenderingContext2D,
+  x: number,
+  y: number,
+  width: number,
+  height: number,
+  colour: string,
+): void {
+  ctx.fillStyle = colour;
+  ctx.fillRect(x, y, width, height);
+  ctx.fillStyle = shade(colour, 0.42);
+  ctx.fillRect(x, y, width, 1);
+  ctx.fillRect(x, y, 1, height);
+  ctx.fillStyle = shade(colour, -0.4);
+  ctx.fillRect(x, y + height - 1, width, 1);
+  ctx.fillRect(x + width - 1, y, 1, height);
 }
 
 function drawBrick(ctx: CanvasRenderingContext2D, brick: Brick): void {
   const growth = regrowth(brick, game.clock, game.rules);
-  const tone = hue(brick.row);
-  const radius = Math.min(6, brick.height / 2);
+  const colour = brickColour(brick.row);
+  const x = Math.round(brick.x);
+  const y = Math.round(brick.y);
+  const width = Math.round(brick.width);
+  const height = Math.round(brick.height);
 
   // Every broken brick keeps an outline of the slot it left behind, so the wall
   // coming back is something you watch approaching rather than discover. Playing
-  // it is what set these numbers: at the first, fainter values the slots read as
-  // empty background and the regrow arrived as a surprise, which is exactly the
-  // rule the game most needs a player to learn without being told.
+  // it is what set this: with the slot invisible, a regrow arrived as a
+  // surprise, and that is the one rule the game most needs to teach wordlessly.
   if (!isSolid(brick)) {
     ctx.save();
-    ctx.strokeStyle = `hsl(${tone} 55% 62% / ${22 + growth * 45}%)`;
-    ctx.lineWidth = 1.5;
-    ctx.setLineDash(growth > 0 ? [] : [5, 4]);
-    ctx.beginPath();
-    ctx.roundRect(brick.x + 0.75, brick.y + 0.75, brick.width - 1.5, brick.height - 1.5, radius);
-    ctx.stroke();
+    ctx.strokeStyle = growth > 0 ? shade(colour, -0.1) : SLOT;
+    ctx.lineWidth = 1;
+    ctx.setLineDash(growth > 0 ? [] : [2, 2]);
+    ctx.strokeRect(x + 0.5, y + 0.5, width - 1, height - 1);
     ctx.restore();
     if (growth <= 0) return;
+    // Grows back from the middle outwards, in whole pixels.
+    const inset = Math.round((height / 2) * (1 - growth));
+    if (height - inset * 2 < 2) return;
+    block(ctx, x, y + inset, width, height - inset * 2, shade(colour, -0.25 + growth * 0.25));
+    return;
   }
 
-  const scale = isSolid(brick) ? 1 : 0.62 + growth * 0.38;
-  const alpha = isSolid(brick) ? 1 : growth;
-  const centreX = brick.x + brick.width / 2;
-  const centreY = brick.y + brick.height / 2;
-
-  ctx.save();
-  ctx.globalAlpha = alpha;
-  ctx.translate(centreX, centreY);
-  ctx.scale(scale, scale);
-  ctx.translate(-centreX, -centreY);
-
-  const gradient = ctx.createLinearGradient(brick.x, brick.y, brick.x, brick.y + brick.height);
-  gradient.addColorStop(0, `hsl(${tone} 62% 62%)`);
-  gradient.addColorStop(1, `hsl(${tone} 58% 44%)`);
-  ctx.fillStyle = gradient;
-  ctx.shadowColor = `hsl(${tone} 70% 55% / 45%)`;
-  ctx.shadowBlur = 14;
-  ctx.beginPath();
-  ctx.roundRect(brick.x, brick.y, brick.width, brick.height, radius);
-  ctx.fill();
-  ctx.restore();
+  block(ctx, x, y, width, height, colour);
 }
 
 function drawLives(ctx: CanvasRenderingContext2D): void {
-  const size = Math.max(4, game.field.height * 0.007);
-  const gap = size * 3;
-  const baseY = game.field.height - size * 3;
+  const size = 3;
   for (let index = 0; index < game.lives; index += 1) {
-    ctx.beginPath();
-    ctx.fillStyle = "hsl(38deg 90% 62% / 70%)";
-    ctx.arc(size * 3 + index * gap, baseY, size, 0, Math.PI * 2);
-    ctx.fill();
+    block(ctx, 5 + index * (size + 3), game.field.height - size - 5, size, size, PADDLE_INK);
   }
 }
 
@@ -203,188 +239,124 @@ function nextReturn(): number | null {
   return soonest;
 }
 
-function label(ctx: CanvasRenderingContext2D, text: string, x: number, y: number): void {
-  ctx.fillStyle = "hsl(210deg 35% 72% / 38%)";
-  ctx.font = "500 11px system-ui, sans-serif";
-  ctx.letterSpacing = "0.16em";
-  ctx.fillText(text.toUpperCase(), x, y);
-  ctx.letterSpacing = "0px";
+const stats = new Map<string, HTMLElement>();
+for (const node of document.querySelectorAll<HTMLElement>("[data-stat]")) {
+  stats.set(node.dataset.stat ?? "", node);
 }
 
-function value(ctx: CanvasRenderingContext2D, text: string, x: number, y: number): void {
-  ctx.fillStyle = "hsl(210deg 45% 92% / 82%)";
-  ctx.font = "600 26px system-ui, sans-serif";
-  ctx.fillText(text, x, y);
+/** Writes only when the text actually changed, so this is not 60 DOM writes a second. */
+function put(key: string, text: string): void {
+  const node = stats.get(key);
+  if (node && node.textContent !== text) node.textContent = text;
 }
 
-/**
- * On a wide screen the field leaves a lot of room either side. Rather than
- * leave it black, the margins carry the run: what is happening on the left,
- * what the wall is about to do on the right. Never drawn on a phone, where
- * there is no margin and the field is the whole screen.
- */
-function drawPanels(ctx: CanvasRenderingContext2D): void {
-  if (offsetX < PANEL_MIN_MARGIN) return;
-  const gutter = 34;
-  const leftX = offsetX - gutter - 150;
-  const rightX = offsetX + game.field.width + gutter;
-  let y = offsetY + 26;
+function syncStats(): void {
+  put("level", `${game.level}/${game.baseRules.levels}`);
+  put("time", clock());
+  put("broken", String(game.broken));
+  put("lives", "\u25AA".repeat(game.lives) || "\u2013");
+  put("down", `${game.bricks.filter((brick) => !isSolid(brick)).length}/${game.bricks.length}`);
+  put("regrow", `${(game.rules.regrowMs / 1000).toFixed(0)}s`);
 
-  ctx.save();
-  ctx.textBaseline = "alphabetic";
-
-  label(ctx, "level", leftX, y);
-  value(ctx, `${game.level}/${game.baseRules.levels}`, leftX, y + 30);
-  y += 78;
-
-  label(ctx, "time", leftX, y);
-  value(ctx, clock(), leftX, y + 30);
-  y += 78;
-
-  label(ctx, "broken", leftX, y);
-  value(ctx, String(game.broken), leftX, y + 30);
-  y += 78;
-
-  label(ctx, "lives", leftX, y);
-  for (let index = 0; index < game.baseRules.lives; index += 1) {
-    ctx.beginPath();
-    ctx.fillStyle =
-      index < game.lives ? "hsl(38deg 92% 64% / 88%)" : "hsl(38deg 30% 60% / 18%)";
-    ctx.arc(leftX + 7 + index * 22, y + 22, 6, 0, Math.PI * 2);
-    ctx.fill();
-  }
-
-  // Right side: the wall itself, which is the thing the whole game is a race against.
-  let rightY = offsetY + 26;
-  const down = game.bricks.filter((brick) => !isSolid(brick)).length;
-
-  label(ctx, "wall down", rightX, rightY);
-  value(ctx, `${down}/${game.bricks.length}`, rightX, rightY + 30);
-  rightY += 78;
-
-  label(ctx, "next back", rightX, rightY);
   const served = nextReturn();
-  const barWidth = 150;
-  ctx.beginPath();
-  ctx.fillStyle = "hsl(210deg 40% 70% / 12%)";
-  ctx.roundRect(rightX, rightY + 14, barWidth, 8, 4);
-  ctx.fill();
-  if (served !== null) {
-    ctx.beginPath();
-    ctx.fillStyle = served > 0.85 ? "hsl(8deg 85% 62% / 90%)" : "hsl(168deg 60% 55% / 70%)";
-    ctx.roundRect(rightX, rightY + 14, Math.max(4, barWidth * served), 8, 4);
-    ctx.fill();
-  }
-  rightY += 74;
-
-  label(ctx, "regrow", rightX, rightY);
-  value(ctx, `${(game.rules.regrowMs / 1000).toFixed(0)}s`, rightX, rightY + 30);
-  rightY += 78;
-
-  if (best) {
-    label(ctx, "best", rightX, rightY);
-    value(ctx, `L${best.level} · ${Math.floor(best.seconds / 60)}:${String(best.seconds % 60).padStart(2, "0")}`, rightX, rightY + 30);
+  const meter = stats.get("next");
+  if (meter) {
+    meter.style.width = `${Math.round((served ?? 0) * 100)}%`;
+    meter.dataset.soon = String(served !== null && served > 0.85);
   }
 
-  ctx.restore();
+  const bestRow = stats.get("best-row");
+  if (bestRow) {
+    bestRow.hidden = best === null;
+    if (best) put("best", `L${best.level} · ${Math.floor(best.seconds / 60)}:${String(best.seconds % 60).padStart(2, "0")}`);
+  }
+}
+
+/** Tells the CSS where the field landed, so the panels can sit beside it. */
+function publishLayout(): void {
+  const root = document.documentElement;
+  root.style.setProperty("--field-left", `${offsetX * PIXEL}px`);
+  root.style.setProperty("--field-top", `${offsetY * PIXEL}px`);
+  root.style.setProperty("--field-width", `${game.field.width * PIXEL}px`);
+  root.style.setProperty("--field-height", `${game.field.height * PIXEL}px`);
+  root.dataset.panels = String(offsetX >= PANEL_MIN_MARGIN / PIXEL);
 }
 
 function draw(now: number): void {
   if (!context || !canvas) return;
   const ctx = context;
   const { field, ball, paddle } = game;
+  const view = screen();
+
+  ctx.clearRect(0, 0, view.width, view.height);
 
   ctx.save();
-  ctx.setTransform(ratio(), 0, 0, ratio(), 0, 0);
-  ctx.fillStyle = "#070b14";
-  ctx.fillRect(0, 0, window.innerWidth, window.innerHeight);
-  ctx.restore();
-
-  drawPanels(ctx);
-
-  ctx.save();
-  const jolt = shake > 0 ? (Math.random() - 0.5) * shake : 0;
+  const jolt = shake > 0 ? Math.round((Math.random() - 0.5) * shake) : 0;
   ctx.translate(offsetX + jolt, offsetY);
 
-  ctx.fillStyle = "#0b1120";
-  ctx.beginPath();
-  ctx.roundRect(0, 0, field.width, field.height, 14);
-  ctx.fill();
-  ctx.strokeStyle = "hsl(210deg 40% 70% / 10%)";
+  // The screen: a flat LCD panel with a hard one-pixel bezel, like a device cutout.
+  ctx.fillStyle = FIELD_BG;
+  ctx.fillRect(0, 0, field.width, field.height);
+  ctx.strokeStyle = BEZEL;
   ctx.lineWidth = 1;
-  ctx.stroke();
+  ctx.strokeRect(0.5, 0.5, field.width - 1, field.height - 1);
 
   ctx.save();
   ctx.beginPath();
-  ctx.roundRect(0, 0, field.width, field.height, 14);
+  ctx.rect(1, 1, field.width - 2, field.height - 2);
   ctx.clip();
 
   for (const brick of game.bricks) drawBrick(ctx, brick);
 
-  if (!reducedMotion) {
-    trail.forEach((point, index) => {
-      const strength = (index + 1) / trail.length;
-      ctx.beginPath();
-      ctx.fillStyle = `hsl(200deg 100% 88% / ${strength * 22}%)`;
-      ctx.arc(point.x, point.y, ball.radius * strength * 0.85, 0, Math.PI * 2);
-      ctx.fill();
-    });
+  // A square ball, drawn on the pixel grid. No trail and no glow: neither
+  // existed on the handset, and both fight the flat look.
+  const size = Math.max(2, Math.round(ball.radius * 1.6));
+  ctx.fillStyle = INK;
+  ctx.fillRect(Math.round(ball.x - size / 2), Math.round(ball.y - size / 2), size, size);
+
+  // The paddle is the one steel object on screen, so it reads as the thing you hold.
+  const paddleY = Math.round(paddle.y);
+  const paddleX = Math.round(paddle.x);
+  const paddleW = Math.round(paddle.width);
+  const paddleH = Math.max(3, Math.round(paddle.height));
+  block(ctx, paddleX, paddleY, paddleW, paddleH, PADDLE_INK);
+
+  // In attract the paddle blinks, which is the only invitation the screen makes.
+  if (game.phase === "attract" && !reducedMotion && Math.floor(now / 420) % 2 === 0) {
+    ctx.fillStyle = FIELD_BG;
+    ctx.fillRect(paddleX + 1, paddleY + 1, paddleW - 2, paddleH - 2);
   }
 
-  ctx.save();
-  ctx.shadowColor = "hsl(196deg 100% 75% / 80%)";
-  ctx.shadowBlur = 18;
-  ctx.fillStyle = "#f2fbff";
-  ctx.beginPath();
-  ctx.arc(ball.x, ball.y, ball.radius, 0, Math.PI * 2);
-  ctx.fill();
-  ctx.restore();
+  if (offsetX < PANEL_MIN_MARGIN / PIXEL) drawLives(ctx);
 
-  // In attract the paddle breathes, which is the only invitation the screen makes.
-  const pulse =
-    game.phase === "attract" && !reducedMotion ? 0.55 + Math.sin(now / 420) * 0.45 : 0.35;
-  ctx.save();
-  ctx.shadowColor = `hsl(38deg 95% 60% / ${40 + pulse * 45}%)`;
-  ctx.shadowBlur = 12 + pulse * 18;
-  ctx.fillStyle = "hsl(38deg 92% 64%)";
-  ctx.beginPath();
-  ctx.roundRect(paddle.x, paddle.y, paddle.width, paddle.height, paddle.height / 2);
-  ctx.fill();
-  ctx.restore();
-
-  if (offsetX < PANEL_MIN_MARGIN) drawLives(ctx);
+  // A new wall announces itself with a flash of the field, so levelling up is
+  // legible without a word of copy.
+  const sinceLevel = game.clock - game.levelStartedAt;
+  if (game.level > 1 && sinceLevel < 600 && !reducedMotion && Math.floor(sinceLevel / 100) % 2 === 0) {
+    ctx.fillStyle = "#20241d1f";
+    ctx.fillRect(0, 0, field.width, field.height);
+  }
 
   // Paused has to be unmistakable, not a subtle change in a corner: the field
   // dims and the pause mark sits in the middle of it, so the state is obvious
   // from wherever the player's eyes were when they hit the key.
   if (game.paused) {
-    ctx.fillStyle = "hsl(220deg 45% 4% / 62%)";
+    ctx.fillStyle = "#c3cdb4d6";
     ctx.fillRect(0, 0, field.width, field.height);
-
-    const barHeight = Math.min(74, field.height * 0.09);
-    const barWidth = barHeight * 0.3;
-    const centreX = field.width / 2;
-    const centreY = field.height / 2;
-    ctx.fillStyle = "hsl(38deg 92% 66% / 92%)";
+    const barHeight = Math.max(10, Math.round(field.height * 0.06));
+    const barWidth = Math.max(3, Math.round(barHeight * 0.32));
+    const centreX = Math.round(field.width / 2);
+    const centreY = Math.round(field.height / 2);
     for (const direction of [-1, 1]) {
-      ctx.beginPath();
-      ctx.roundRect(
-        centreX + direction * barWidth * 0.75 - barWidth / 2,
-        centreY - barHeight / 2,
+      block(
+        ctx,
+        centreX + direction * barWidth - (direction < 0 ? barWidth : 0),
+        centreY - Math.round(barHeight / 2),
         barWidth,
         barHeight,
-        barWidth / 2.5,
+        PADDLE_INK,
       );
-      ctx.fill();
     }
-  }
-
-  // A new wall announces itself with a sweep of its own colour, so levelling up
-  // is legible without a word of copy.
-  const sinceLevel = game.clock - game.levelStartedAt;
-  if (game.level > 1 && sinceLevel < 900 && !reducedMotion) {
-    ctx.fillStyle = `hsl(${hue(0)} 70% 60% / ${(1 - sinceLevel / 900) * 16}%)`;
-    ctx.fillRect(0, 0, field.width, field.height);
   }
 
   ctx.restore();
@@ -439,15 +411,9 @@ function frame(timestamp: number): void {
     movePaddle(game, game.field.width / 2 + drift);
   }
 
-  if (game.phase === "playing" && !game.paused && !reducedMotion) {
-    trail.push({ x: game.ball.x, y: game.ball.y });
-    if (trail.length > TRAIL_LENGTH) trail.shift();
-  } else if (game.phase !== "playing") {
-    trail = [];
-  }
-
   announce();
   syncControls();
+  syncStats();
   draw(timestamp);
   window.requestAnimationFrame(frame);
 }
@@ -473,12 +439,14 @@ function setup(): void {
   if (!canvas || !context) return;
   fitCanvas();
   game = createGame(measure());
+  publishLayout();
 
   window.addEventListener("pointerdown", onPointer);
   window.addEventListener("pointermove", onPointer);
   window.addEventListener("resize", () => {
     fitCanvas();
     resize(game, measure());
+    publishLayout();
   });
 
   // Nobody has to find these, but a player who reaches for them should not be
