@@ -21,3 +21,6 @@ mise.local.toml
 # your course API key, and this repo goes public when you ship. Your tracked
 # harness is CLAUDE.md (and any AGENTS.md), not this directory.
 .claude/
+
+# scratch mirror the CI link check builds under the Pages base path
+.linkcheck/

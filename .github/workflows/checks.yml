@@ -51,7 +51,21 @@ jobs:
         # passes having scanned zero links. The stack skill rewrites the
         # command below when it converts the repo to Astro, and carries the
         # same skip over, so this comment holds either way.
-        run: pnpm dlx linkinator ./dist --silent --skip "^https?://(?!localhost|127)"
+        # Astro is configured with `base`, because a project Pages site is
+        # served from /<repo>/ rather than from the domain root, so the built
+        # asset URLs all carry that prefix. Pointing linkinator at ./dist makes
+        # it treat dist as the origin root and look for
+        # dist/<repo>/_astro/..., which does not exist, and every asset comes
+        # back 404 while the deployed site is perfectly fine. Mirroring dist
+        # under the base path first means the checker requests exactly the
+        # paths a browser will.
+        run: |
+          rm -rf .linkcheck
+          mkdir -p ".linkcheck/${GITHUB_REPOSITORY#*/}"
+          cp -R dist/. ".linkcheck/${GITHUB_REPOSITORY#*/}/"
+          pnpm dlx linkinator "${GITHUB_REPOSITORY#*/}/index.html" \
+            --server-root .linkcheck \
+            --silent --skip "^https?://(?!localhost|127)"
       - name: Scan for committed secrets
         # Pinned, both halves: the SHA fixes the action's script, and `version`
         # fixes the scanner image, which otherwise floats on :latest. These two
