@@ -35,7 +35,7 @@ const MAX_FIELD_HEIGHT = 880;
  * is no margin beside the field for the stat panels, and the title and buttons
  * already fill the bar, so it gains a second row and the stats go across it.
  */
-const BAR_TALL = 78;
+const BAR_TALL = 108;
 const BAR_SHORT = 44;
 
 function barHeight(): number {

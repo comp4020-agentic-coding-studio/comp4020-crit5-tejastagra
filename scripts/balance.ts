@@ -29,8 +29,9 @@ import type { Field, Rules } from "../src/scripts/game.ts";
  * layout changes.
  */
 const FIELD: Field = { width: 206, height: 293 };
-/** The narrowest the field ever gets: a phone at 390x844. */
-const PHONE: Field = { width: 116, height: 266 };
+/** The smallest the field ever gets: a phone at 390x844, whose bar carries a
+ * second row of stats and so takes more of the screen than a desktop's does. */
+const PHONE: Field = { width: 116, height: 245 };
 const FRAME = 0.016;
 const GIVE_UP_MS = 300_000;
 

@@ -287,22 +287,22 @@ canvas {
    second row of the bar. Only the ones marked compact earn the room. */
 :root[data-panels="false"] .panels {
   position: absolute;
-  top: 34px;
+  top: 36px;
   right: 0;
   left: 0;
   display: flex;
   gap: 0.5rem;
   align-items: center;
   justify-content: space-evenly;
-  height: 40px;
-  padding: 0 0.6rem;
+  height: 68px;
+  padding: 0 0.5rem;
   pointer-events: none;
 }
 
 :root[data-panels="false"] .panel {
   position: static;
   display: flex;
-  gap: 0.9rem;
+  gap: 1.1rem;
   align-items: center;
   width: auto;
   text-align: left;
@@ -317,13 +317,13 @@ canvas {
 }
 
 :root[data-panels="false"] .panel span {
-  font-size: 0.5rem;
-  letter-spacing: 0.1em;
+  font-size: 0.66rem;
+  letter-spacing: 0.08em;
 }
 
 :root[data-panels="false"] .panel b {
-  margin-top: 0;
-  font-size: 0.95rem;
+  margin-top: 0.1rem;
+  font-size: 1.45rem;
 }
 
 /* The full label does not fit in a phone-width column, so a short one stands
@@ -334,9 +334,9 @@ canvas {
 
 :root[data-panels="false"] .panel p[data-short]::before {
   display: block;
-  font-size: 0.5rem;
+  font-size: 0.66rem;
   font-weight: 700;
-  letter-spacing: 0.1em;
+  letter-spacing: 0.08em;
   color: var(--ink-soft);
   text-transform: uppercase;
   content: attr(data-short);
