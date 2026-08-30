@@ -11,6 +11,8 @@ import {
   movePaddle,
   regrowBricks,
   regrowth,
+  restart,
+  togglePause,
 } from "../src/scripts/game.ts";
 import type { Field, Game } from "../src/scripts/game.ts";
 
@@ -26,16 +28,14 @@ import type { Field, Game } from "../src/scripts/game.ts";
 
 const FIELD: Field = { width: 620, height: 880 };
 
-/** Runs the game forward on a synthetic clock, so five simulated minutes cost nothing. */
+/** Runs the game forward on its own clock, so five simulated minutes cost nothing. */
 function play(game: Game, steps: number, onFrame?: (game: Game) => void): number {
-  let now = 0;
   for (let frame = 0; frame < steps; frame += 1) {
-    now += 16;
-    advance(game, 0.016, now);
+    advance(game, 0.016);
     onFrame?.(game);
     if (game.phase === "won" || game.phase === "lost") break;
   }
-  return now;
+  return game.clock;
 }
 
 // ---------------------------------------------------------------------------
@@ -48,7 +48,7 @@ function play(game: Game, steps: number, onFrame?: (game: Game) => void): number
 // ---------------------------------------------------------------------------
 describe("the rule the game turns on: a broken brick grows back", () => {
   it("stays down for exactly the regrow wait, and not a millisecond less", () => {
-    const game = createGame(FIELD, 0);
+    const game = createGame(FIELD);
     const brick = game.bricks[0]!;
     brick.brokenAt = 1000;
 
@@ -62,7 +62,7 @@ describe("the rule the game turns on: a broken brick grows back", () => {
   });
 
   it("is invisible until the tail of the wait, then grows in fully", () => {
-    const game = createGame(FIELD, 0);
+    const game = createGame(FIELD);
     const brick = game.bricks[0]!;
     brick.brokenAt = 0;
 
@@ -79,7 +79,7 @@ describe("the rule the game turns on: a broken brick grows back", () => {
     // The fade is a warning, so a half-grown brick must not bat the ball away.
     // Without this the player is punished by something they can see coming and
     // cannot yet plan around.
-    const game = createGame(FIELD, 0);
+    const game = createGame(FIELD);
     const brick = game.bricks[0]!;
     brick.brokenAt = 0;
 
@@ -90,7 +90,7 @@ describe("the rule the game turns on: a broken brick grows back", () => {
   });
 
   it("un-clears a wall the moment one brick returns", () => {
-    const game = createGame(FIELD, 0);
+    const game = createGame(FIELD);
     for (const brick of game.bricks) brick.brokenAt = 0;
     expect(isCleared(game.bricks)).toBe(true);
 
@@ -107,7 +107,7 @@ describe("the rule the game turns on: a broken brick grows back", () => {
 // ---------------------------------------------------------------------------
 describe("play ends somewhere", () => {
   it("ends in a loss when the ball keeps getting past the paddle", () => {
-    const game = createGame(FIELD, 0);
+    const game = createGame(FIELD);
     game.phase = "playing";
     game.ball.vx = 0;
     game.ball.vy = game.speed;
@@ -123,22 +123,94 @@ describe("play ends somewhere", () => {
     expect(game.lives).toBe(0);
   });
 
-  it("ends in a win when the whole wall is down at once", () => {
-    const game = createGame(FIELD, 0);
+  it("puts up a harder wall when one is cleared, until the last", () => {
+    const game = createGame(FIELD);
     game.phase = "playing";
-    for (const brick of game.bricks) brick.brokenAt = 1;
+    const firstRegrow = game.rules.regrowMs;
+    for (const brick of game.bricks) brick.brokenAt = game.clock;
 
-    advance(game, 0.016, 2);
-    expect(game.phase, "clearing every brick did not finish the game").toBe("won");
+    advance(game, 0.016);
+    expect(game.level, "clearing the first wall did not advance a level").toBe(2);
+    expect(game.phase, "the next wall should serve, not end the run").toBe("serving");
+    expect(
+      game.rules.regrowMs,
+      "the second wall grows back no faster than the first, so nothing escalated",
+    ).toBeLessThan(firstRegrow);
+    expect(game.bricks.every(isSolid), "the new wall did not go up whole").toBe(true);
+  });
+
+  it("ends in a win when the last wall is cleared", () => {
+    const game = createGame(FIELD);
+    game.phase = "playing";
+    game.level = DEFAULT_RULES.levels;
+    for (const brick of game.bricks) brick.brokenAt = game.clock;
+
+    advance(game, 0.016);
+    expect(game.phase, "clearing the final wall did not finish the game").toBe("won");
   });
 
   it("keeps a finished run finished until it is restarted", () => {
-    const game = createGame(FIELD, 0);
+    const game = createGame(FIELD);
     game.phase = "lost";
     const before = { ...game.ball };
-    advance(game, 0.016, 5000);
+    advance(game, 0.016);
     expect(game.ball.x).toBe(before.x);
     expect(game.ball.y).toBe(before.y);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Pausing has to stop time, not just the ball. The wall regrows on a clock, so
+// a pause that only froze the physics would quietly hand back a rebuilt wall
+// while the player was away from the keyboard.
+// ---------------------------------------------------------------------------
+describe("a paused game is genuinely frozen", () => {
+  it("does not let the wall grow back behind a pause", () => {
+    const game = createGame(FIELD);
+    game.phase = "playing";
+    const brick = game.bricks[0]!;
+    brick.brokenAt = game.clock;
+
+    togglePause(game);
+    expect(game.paused).toBe(true);
+
+    // Far longer than a full regrow wait, all of it paused.
+    play(game, Math.ceil((game.rules.regrowMs * 2) / 16));
+
+    expect(
+      isSolid(brick),
+      "the wall rebuilt itself while the game was paused, so pausing is a way to cheat",
+    ).toBe(false);
+  });
+
+  it("stops the clock, and starts it again on resume", () => {
+    const game = createGame(FIELD);
+    game.phase = "playing";
+    togglePause(game);
+    play(game, 60);
+    expect(game.clock, "a paused clock kept counting").toBe(0);
+
+    togglePause(game);
+    play(game, 60);
+    expect(game.clock, "the clock never restarted after a resume").toBeGreaterThan(0);
+  });
+});
+
+describe("a new game starts from the top", () => {
+  it("resets the level, the lives and the wall", () => {
+    const game = createGame(FIELD);
+    game.level = 3;
+    game.lives = 1;
+    game.broken = 40;
+    for (const brick of game.bricks) brick.brokenAt = game.clock;
+
+    restart(game);
+
+    expect(game.level).toBe(1);
+    expect(game.lives).toBe(DEFAULT_RULES.lives);
+    expect(game.broken).toBe(0);
+    expect(game.paused).toBe(false);
+    expect(game.bricks.every(isSolid), "a new game started on a broken wall").toBe(true);
   });
 });
 

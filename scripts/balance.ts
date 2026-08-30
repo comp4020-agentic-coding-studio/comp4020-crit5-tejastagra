@@ -31,12 +31,11 @@ export interface Outcome {
 
 /** skill runs 0 (careless) to 1 (sharp) and sets hand speed, reaction lag and precision. */
 export function simulate(rules: Rules, skill: number, seed: number): Outcome {
-  const game = createGame(FIELD, 0, rules);
+  const game = createGame(FIELD, rules, () => 0.5);
   game.phase = "playing";
   game.ball.vx = game.speed * 0.35;
   game.ball.vy = -game.speed * 0.94;
 
-  let now = 0;
   let rng = seed;
   const random = () => ((rng = (rng * 1664525 + 1013904223) % 4294967296) / 4294967296);
 
@@ -46,8 +45,7 @@ export function simulate(rules: Rules, skill: number, seed: number): Outcome {
   const seen: number[] = [];
   let centre = game.paddle.x + game.paddle.width / 2;
 
-  while (game.phase !== "won" && game.phase !== "lost" && now < GIVE_UP_MS) {
-    now += 16;
+  while (game.phase !== "won" && game.phase !== "lost" && game.clock < GIVE_UP_MS) {
     seen.push(game.ball.x);
     const remembered = seen[Math.max(0, seen.length - 1 - lagFrames)] ?? game.ball.x;
     // Players lead the ball to aim it, rather than meeting it dead centre.
@@ -57,10 +55,10 @@ export function simulate(rules: Rules, skill: number, seed: number): Outcome {
       (random() - 0.5) * jitter;
     centre += Math.max(-maxStep, Math.min(maxStep, aim - centre));
     movePaddle(game, centre);
-    advance(game, FRAME, now);
+    advance(game, FRAME);
     centre = game.paddle.x + game.paddle.width / 2;
   }
-  return { phase: game.phase, seconds: Math.round(now / 1000) };
+  return { phase: game.phase, seconds: Math.round(game.clock / 1000) };
 }
 
 const SEEDS = [1, 2, 3, 4, 5, 6, 7, 8];
@@ -85,13 +83,16 @@ function report(label: string, rules: Rules): void {
 }
 
 console.log(
-  "What to look for: no runs stuck (every run must reach an ending), every\n" +
+  "A win here means clearing all three escalating walls, not one.\n\n" +
+    "What to look for: no runs stuck (every run must reach an ending), every\n" +
     "max well inside the five minutes the brief allows a stranger, and a win\n" +
     "rate that climbs with skill. A wall nobody can clear is not a hard game,\n" +
     "it is a broken one.\n",
 );
 
 report("shipped", DEFAULT_RULES);
-for (const regrowMs of [11_000, 17_000, 22_000, 28_000]) {
-  report(`regrow ${regrowMs / 1000}s`, { ...DEFAULT_RULES, regrowMs });
+for (const levels of [1, 2, 3]) {
+  for (const lives of [4, 5]) {
+    report(`${levels} wall(s), ${lives} lives`, { ...DEFAULT_RULES, levels, lives });
+  }
 }

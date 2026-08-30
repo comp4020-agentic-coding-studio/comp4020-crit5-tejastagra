@@ -11,18 +11,26 @@
  * once. Winning means breaking the last brick before the first one returns,
  * which takes either a hot streak or the channel above the wall, where the ball
  * rattles along the top and breaks bricks far faster than they come back.
+ *
+ * The game keeps its OWN clock, advanced by advance() rather than read from
+ * Date.now or a frame timestamp. That is what makes pausing honest: a paused
+ * game's clock stops, so the wall cannot grow back behind a pause screen, and a
+ * backgrounded tab cannot regrow the whole wall while nobody is looking.
  */
 
 /**
  * Every number that decides how the game feels, in one place and injectable,
  * because the balance here is a knife edge: the wall has to be un-grindable and
  * still clearable. These values came out of sweeping them against a simulated
- * player rather than being picked by eye. See sim notes in PROCESS.md.
+ * player rather than being picked by eye. Run `pnpm balance` after changing any
+ * of them.
  */
 export interface Rules {
   columns: number;
   rows: number;
   lives: number;
+  /** How many escalating walls make a full run. */
+  levels: number;
   /** How long a broken brick stays down before it is solid again. */
   regrowMs: number;
   /** The tail of that wait, during which the brick is visibly growing back. */
@@ -40,6 +48,7 @@ export const DEFAULT_RULES: Rules = {
   columns: 4,
   rows: 3,
   lives: 4,
+  levels: 2,
   // 11s was the first guess and it made the wall mathematically unclearable:
   // a single ball breaks about 0.56 bricks a second, so twelve of them inside
   // one regrow window needs a good deal longer than eleven seconds. Swept
@@ -52,8 +61,24 @@ export const DEFAULT_RULES: Rules = {
   maxSpeedMultiplier: 1.35,
 };
 
+/**
+ * How the game escalates. The wall keeps its shape and gets harder to outrun:
+ * it grows back sooner and the ball moves quicker, so the window you have to
+ * land the whole wall inside keeps narrowing.
+ */
+export function rulesForLevel(level: number, base: Rules = DEFAULT_RULES): Rules {
+  const step = Math.max(0, level - 1);
+  return {
+    ...base,
+    regrowMs: Math.round(base.regrowMs * 0.82 ** step),
+    baseSpeed: base.baseSpeed * 1.08 ** step,
+  };
+}
+
 /** How far off vertical the ball can leave the paddle, at the very edge of it. */
 const MAX_BOUNCE_ANGLE = Math.PI / 3;
+/** A serve is angled somewhere in here, so no two runs open the same way. */
+const SERVE_SPREAD = Math.PI / 5;
 
 export interface Field {
   width: number;
@@ -67,7 +92,7 @@ export interface Brick {
   y: number;
   width: number;
   height: number;
-  /** null while the brick is solid, otherwise the time it was broken at. */
+  /** null while the brick is solid, otherwise the game-clock time it was broken at. */
   brokenAt: number | null;
 }
 
@@ -95,29 +120,38 @@ export interface Paddle {
 export type Phase = "attract" | "serving" | "playing" | "won" | "lost";
 
 export interface Game {
+  /** The rules of the level being played. */
   rules: Rules;
+  /** The rules level 1 is derived from, kept so later levels can be derived too. */
+  baseRules: Rules;
   field: Field;
   bricks: Brick[];
   ball: Ball;
   paddle: Paddle;
   lives: number;
+  level: number;
   phase: Phase;
-  /** When a serving ball launches itself. */
+  /** Milliseconds of actual play. Stops while paused. Everything timed reads this. */
+  clock: number;
+  paused: boolean;
+  /** Clock time a serving ball launches itself at. */
   serveAt: number;
+  /** Clock time the current wall went up, so the renderer can flash a new level. */
+  levelStartedAt: number;
   /** Current ball speed in pixels per second. */
   speed: number;
   baseSpeed: number;
-  /** Bricks broken this run, only used to tell the renderer something happened. */
   broken: number;
+  /** Injectable so tests and the balance sim stay deterministic. */
+  rng: () => number;
 }
 
 export interface StepResult {
-  /** Bricks broken during this step. */
   broke: number;
-  /** The ball was lost off the bottom during this step. */
   lostLife: boolean;
-  /** A wall, the paddle or a brick was struck. */
   bounced: boolean;
+  /** A wall was cleared and another went up. */
+  levelUp: boolean;
 }
 
 function clamp(value: number, low: number, high: number): number {
@@ -167,11 +201,17 @@ export function createPaddle(field: Field): Paddle {
   };
 }
 
-export function createGame(field: Field, now: number, rules: Rules = DEFAULT_RULES): Game {
+export function createGame(
+  field: Field,
+  baseRules: Rules = DEFAULT_RULES,
+  rng: () => number = Math.random,
+): Game {
+  const rules = rulesForLevel(1, baseRules);
   const paddle = createPaddle(field);
   const speed = field.height * rules.baseSpeed;
   return {
     rules,
+    baseRules,
     field,
     bricks: layoutBricks(field, rules),
     paddle,
@@ -183,11 +223,16 @@ export function createGame(field: Field, now: number, rules: Rules = DEFAULT_RUL
       radius: Math.max(5, field.height * 0.011),
     },
     lives: rules.lives,
+    level: 1,
     phase: "attract",
-    serveAt: now,
+    clock: 0,
+    paused: false,
+    serveAt: 0,
+    levelStartedAt: 0,
     speed,
     baseSpeed: speed,
     broken: 0,
+    rng,
   };
 }
 
@@ -232,9 +277,9 @@ export function isSolid(brick: Brick): boolean {
  * The renderer uses it to grow the brick back in view before it starts
  * deflecting anything, so its return is never a surprise.
  */
-export function regrowth(brick: Brick, now: number, rules: Rules = DEFAULT_RULES): number {
+export function regrowth(brick: Brick, clock: number, rules: Rules = DEFAULT_RULES): number {
   if (brick.brokenAt === null) return 1;
-  const elapsed = now - brick.brokenAt;
+  const elapsed = clock - brick.brokenAt;
   const fadeStart = rules.regrowMs - rules.regrowFadeMs;
   if (elapsed <= fadeStart) return 0;
   return clamp((elapsed - fadeStart) / rules.regrowFadeMs, 0, 1);
@@ -244,13 +289,9 @@ export function regrowth(brick: Brick, now: number, rules: Rules = DEFAULT_RULES
  * The rule the whole design rests on: a broken brick comes back solid once
  * the regrow wait has passed, and not one millisecond before.
  */
-export function regrowBricks(
-  bricks: Brick[],
-  now: number,
-  rules: Rules = DEFAULT_RULES,
-): void {
+export function regrowBricks(bricks: Brick[], clock: number, rules: Rules = DEFAULT_RULES): void {
   for (const brick of bricks) {
-    if (brick.brokenAt !== null && now - brick.brokenAt >= rules.regrowMs) {
+    if (brick.brokenAt !== null && clock - brick.brokenAt >= rules.regrowMs) {
       brick.brokenAt = null;
     }
   }
@@ -273,11 +314,7 @@ export function bounceAngle(ballX: number, paddle: Paddle): number {
 }
 
 export function movePaddle(game: Game, centreX: number): void {
-  game.paddle.x = clamp(
-    centreX - game.paddle.width / 2,
-    0,
-    game.field.width - game.paddle.width,
-  );
+  game.paddle.x = clamp(centreX - game.paddle.width / 2, 0, game.field.width - game.paddle.width);
 }
 
 function restBallOnPaddle(game: Game): void {
@@ -287,28 +324,53 @@ function restBallOnPaddle(game: Game): void {
   game.ball.vy = 0;
 }
 
+/** Serves at a fresh angle each time, so no two runs open identically. */
 export function launch(game: Game): void {
-  const angle = bounceAngle(game.ball.x, game.paddle) * 0.5;
+  const angle = (game.rng() * 2 - 1) * SERVE_SPREAD;
   game.ball.vx = Math.sin(angle) * game.speed;
   game.ball.vy = -Math.cos(angle) * game.speed;
   game.phase = "playing";
 }
 
 /** Called when the player first takes hold of the paddle. No key, no button, no words. */
-export function takeControl(game: Game, now: number): void {
+export function takeControl(game: Game): void {
   if (game.phase !== "attract") return;
-  game.serveAt = now + game.rules.serveDelayMs;
+  game.serveAt = game.clock + game.rules.serveDelayMs;
   game.phase = "serving";
 }
 
-export function restart(game: Game, now: number): void {
+function startLevel(game: Game, level: number): void {
+  // Clearing a wall tops a life back up, short of the starting count. Without
+  // it the later walls are unreachable: the balance sim had nobody at all
+  // finishing three escalating walls on one shared pool of lives.
+  if (level > 1) game.lives = Math.min(game.lives + 1, game.baseRules.lives);
+  game.level = level;
+  game.rules = rulesForLevel(level, game.baseRules);
   game.bricks = layoutBricks(game.field, game.rules);
-  game.lives = game.rules.lives;
+  game.baseSpeed = game.field.height * game.rules.baseSpeed;
   game.speed = game.baseSpeed;
-  game.broken = 0;
+  game.levelStartedAt = game.clock;
+  game.serveAt = game.clock + game.rules.serveDelayMs;
   game.phase = "serving";
-  game.serveAt = now + game.rules.serveDelayMs;
   restBallOnPaddle(game);
+}
+
+/** A new game from the top: level 1, full lives, fresh wall. */
+export function restart(game: Game): void {
+  game.lives = game.baseRules.lives;
+  game.broken = 0;
+  game.paused = false;
+  startLevel(game, 1);
+}
+
+export function togglePause(game: Game): void {
+  if (game.phase === "won" || game.phase === "lost" || game.phase === "attract") return;
+  game.paused = !game.paused;
+}
+
+export function setPaused(game: Game, paused: boolean): void {
+  if (game.phase === "won" || game.phase === "lost" || game.phase === "attract") return;
+  game.paused = paused;
 }
 
 function hitWalls(game: Game, result: StepResult): void {
@@ -344,7 +406,7 @@ function hitPaddle(game: Game, result: StepResult): void {
   result.bounced = true;
 }
 
-function hitBricks(game: Game, now: number, result: StepResult): void {
+function hitBricks(game: Game, result: StepResult): void {
   const { ball } = game;
   for (const brick of game.bricks) {
     if (brick.brokenAt !== null) continue;
@@ -367,7 +429,7 @@ function hitBricks(game: Game, now: number, result: StepResult): void {
       ball.y += side(dy) * overlapY;
     }
 
-    brick.brokenAt = now;
+    brick.brokenAt = game.clock;
     game.broken += 1;
     game.speed = Math.min(
       game.speed * game.rules.speedGain,
@@ -381,7 +443,7 @@ function hitBricks(game: Game, now: number, result: StepResult): void {
   }
 }
 
-function loseBall(game: Game, now: number, result: StepResult): void {
+function loseBall(game: Game, result: StepResult): void {
   if (game.ball.y - game.ball.radius <= game.field.height) return;
   game.lives -= 1;
   result.lostLife = true;
@@ -391,24 +453,25 @@ function loseBall(game: Game, now: number, result: StepResult): void {
     return;
   }
   game.phase = "serving";
-  game.serveAt = now + game.rules.serveDelayMs;
+  game.serveAt = game.clock + game.rules.serveDelayMs;
   restBallOnPaddle(game);
 }
 
 /**
- * Advances the game by `dt` seconds. `now` is a millisecond clock passed in
- * rather than read, so a test can run five simulated minutes instantly.
+ * Advances the game by `dt` seconds of play. The game's own clock moves with
+ * it, so nothing here reads a wall clock and a paused game is genuinely frozen.
  */
-export function advance(game: Game, dt: number, now: number): StepResult {
-  const result: StepResult = { broke: 0, lostLife: false, bounced: false };
+export function advance(game: Game, dt: number): StepResult {
+  const result: StepResult = { broke: 0, lostLife: false, bounced: false, levelUp: false };
 
-  regrowBricks(game.bricks, now, game.rules);
+  if (game.phase === "won" || game.phase === "lost" || game.paused) return result;
 
-  if (game.phase === "won" || game.phase === "lost") return result;
+  game.clock += dt * 1000;
+  regrowBricks(game.bricks, game.clock, game.rules);
 
   if (game.phase === "attract" || game.phase === "serving") {
     restBallOnPaddle(game);
-    if (game.phase === "serving" && now >= game.serveAt) launch(game);
+    if (game.phase === "serving" && game.clock >= game.serveAt) launch(game);
     return result;
   }
 
@@ -420,12 +483,19 @@ export function advance(game: Game, dt: number, now: number): StepResult {
     game.ball.y += (game.ball.vy * dt) / steps;
     hitWalls(game, result);
     hitPaddle(game, result);
-    hitBricks(game, now, result);
+    hitBricks(game, result);
+
     if (isCleared(game.bricks)) {
-      game.phase = "won";
+      if (game.level >= game.baseRules.levels) {
+        game.phase = "won";
+      } else {
+        startLevel(game, game.level + 1);
+        result.levelUp = true;
+      }
       return result;
     }
-    loseBall(game, now, result);
+
+    loseBall(game, result);
     if (game.phase !== "playing") return result;
   }
   return result;

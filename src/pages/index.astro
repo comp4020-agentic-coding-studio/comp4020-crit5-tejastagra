@@ -35,6 +35,34 @@ import "../../styles.css";
 
     <main>
       <h1 class="nameplate">Overgrow</h1>
+
+      <!--
+        Icon-only, and never the way into the game: the paddle still starts play
+        on the first pointer move, so nothing here has to be found or pressed
+        first. aria-label carries the meaning that the glyph implies.
+      -->
+      <div class="controls" data-controls data-paused="false">
+        <button class="control" type="button" data-action="pause" aria-label="Pause" aria-pressed="false">
+          <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+            <rect class="bar-left" x="7" y="5" width="3.6" height="14" rx="1.4" />
+            <rect class="bar-right" x="13.4" y="5" width="3.6" height="14" rx="1.4" />
+            <path class="play-head" d="M8.5 5.2 19 12 8.5 18.8Z" />
+          </svg>
+        </button>
+        <button class="control" type="button" data-action="new-game" aria-label="New game">
+          <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+            <path
+              d="M19 12a7 7 0 1 1-2.05-4.95"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2.1"
+              stroke-linecap="round"
+            />
+            <path d="M19.6 4.2v4.4h-4.4Z" />
+          </svg>
+        </button>
+      </div>
+
       <canvas id="play"></canvas>
       <div class="outcome" data-outcome-panel data-shown="false">
         <p class="outcome-word" data-testid="outcome" aria-live="polite"></p>

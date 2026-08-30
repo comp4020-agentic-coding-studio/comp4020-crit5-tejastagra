@@ -66,6 +66,83 @@ canvas {
   transform: translateX(-50%);
 }
 
+.controls {
+  position: absolute;
+  top: 0;
+  right: 0;
+  z-index: 2;
+  display: flex;
+  gap: 0.25rem;
+  align-items: center;
+  height: 44px;
+  padding-right: 0.5rem;
+}
+
+/* One flat class rather than `.controls button`, and :disabled placed last at
+   equal specificity rather than hover carrying a :not(). Reordering alone only
+   moves the ambiguity to the next overlapping rule; a flat class removes it. */
+.control {
+  display: grid;
+  width: 36px;
+  height: 36px;
+  padding: 0;
+  color: hsl(210deg 45% 88% / 85%);
+  cursor: pointer;
+  background: hsl(212deg 45% 70% / 12%);
+  border: 1px solid hsl(210deg 45% 75% / 20%);
+  border-radius: 9px;
+  place-content: center;
+  transition:
+    color 160ms ease,
+    background-color 160ms ease,
+    border-color 160ms ease,
+    transform 160ms ease;
+}
+
+.control svg {
+  display: block;
+  width: 18px;
+  height: 18px;
+  fill: currentcolor;
+}
+
+.control:hover,
+.control:focus-visible {
+  color: hsl(38deg 95% 70%);
+  background: hsl(38deg 80% 60% / 22%);
+  border-color: hsl(38deg 85% 65% / 55%);
+  transform: translateY(-1px);
+}
+
+.control:disabled {
+  color: hsl(210deg 40% 82% / 30%);
+  cursor: default;
+  background: hsl(212deg 45% 70% / 6%);
+  border-color: hsl(210deg 45% 75% / 10%);
+  transform: none;
+}
+
+/* The pause button shows what it will DO: two bars while running, a play
+   triangle once paused, so its state is readable without reading anything. */
+.control .play-head {
+  display: none;
+}
+
+.controls[data-paused="true"] .bar-left,
+.controls[data-paused="true"] .bar-right {
+  display: none;
+}
+
+.controls[data-paused="true"] .play-head {
+  display: block;
+}
+
+.controls[data-paused="true"] .control[data-action="pause"] {
+  color: hsl(38deg 95% 70%);
+  background: hsl(38deg 80% 60% / 26%);
+  border-color: hsl(38deg 85% 65% / 60%);
+}
+
 .outcome {
   position: absolute;
   inset: 0;
