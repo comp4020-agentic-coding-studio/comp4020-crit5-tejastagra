@@ -1,11 +1,11 @@
 :root {
   /* A handheld in daylight: pale plastic shell, green LCD, dark pixels. */
-  --shell: #dfe2d8;
-  --shell-edge: #c3c8ba;
-  --lcd: #c3cdb4;
-  --bezel: #5c6357;
-  --ink: #20241d;
-  --ink-soft: #656c5c;
+  --shell: #e3e3e3;
+  --shell-edge: #c6c6c6;
+  --lcd: #c6c6c6;
+  --bezel: #141414;
+  --ink: #141414;
+  --ink-soft: #6a6a6a;
   --mono: "Courier New", ui-monospace, monospace;
   --field-left: 0px;
   --field-top: 0px;
@@ -245,12 +245,12 @@ canvas {
 }
 
 .panel-left {
-  left: calc(var(--field-left) - 150px - 28px);
+  left: calc(var(--field-left) - 150px - 52px);
   text-align: right;
 }
 
 .panel-right {
-  left: calc(var(--field-left) + var(--field-width) + 28px);
+  left: calc(var(--field-left) + var(--field-width) + 52px);
 }
 
 .meter {
@@ -266,12 +266,12 @@ canvas {
   display: block;
   width: 0%;
   height: 100%;
-  background: #2f7d3a;
+  background: #1f7a2e;
   transition: width 200ms linear;
 }
 
 .meter-fill[data-soon="true"] {
-  background: #c2352f;
+  background: #c62d1f;
 }
 
 /* No margins to put them in on a phone, where the LCD is the whole screen. */

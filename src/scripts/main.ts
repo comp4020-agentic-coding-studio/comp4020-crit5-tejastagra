@@ -44,21 +44,28 @@ const PANEL_MIN_MARGIN = 210;
 const PIXEL = 3;
 
 /**
- * A handheld LCD rather than a backlit screen: a pale green panel with dark
- * pixels on it. Flat and saturated, no gradients, one hue per row, shifting to
- * a second set on the second wall.
+ * The handset's own furniture: a pale stone wall behind the play area, hazard
+ * rails down both sides, outlined bricks with a bit of detail in them, and a
+ * blue paddle. Everything black-outlined and high contrast.
  */
 const PALETTES = [
-  ["#c2352f", "#c97f14", "#2f7d3a"],
-  ["#6b3fa0", "#1f5fa8", "#0f7a70"],
+  ["#c62d1f", "#d3d6db", "#c62d1f"],
+  ["#2b57c8", "#d3d6db", "#2b57c8"],
 ];
-/** The LCD panel the game is played on. */
-const FIELD_BG = "#c3cdb4";
-/** The bezel drawn around it. */
-const BEZEL = "#5c6357";
-const INK = "#20241d";
-const PADDLE_INK = "#3c4238";
-const SLOT = "#8a9578";
+const OUTLINE = "#141414";
+/** The stone wall the game is played against. */
+const STONE = "#c6c6c6";
+const STONE_MORTAR = "#aeaeae";
+const STONE_LIGHT = "#d6d6d6";
+/** Hazard rail down each side, the most recognisable thing on the screen. */
+const RAIL_YELLOW = "#f2c200";
+const RAIL_WIDTH = 7;
+/** The strip below the paddle: cross it and the ball is gone. */
+const DANGER = "#8f2015";
+const BALL_INK = "#141414";
+const PADDLE_BLUE = "#2b4fd8";
+const PADDLE_LIGHT = "#7a97ff";
+const SLOT = "#9a9a9a";
 /** Longest frame the physics will accept, so a slow frame cannot teleport the ball. */
 const MAX_FRAME_SECONDS = 1 / 30;
 const BEST_KEY = "overgrow:best";
@@ -122,7 +129,10 @@ function measure(): { width: number; height: number } {
   const view = screen();
   const bar = Math.round(BAR_HEIGHT / PIXEL);
   const available = Math.max(1, view.height - bar);
-  const width = Math.floor(Math.min(view.width, MAX_FIELD_WIDTH / PIXEL));
+  // The rails are drawn just outside the playable rectangle, so the field has
+  // to leave room for them or they fall off the edge of a phone screen, taking
+  // the most recognisable thing on the display with them.
+  const width = Math.floor(Math.min(view.width - RAIL_WIDTH * 2, MAX_FIELD_WIDTH / PIXEL));
   // A phone is far taller than it is wide and a desktop is not, so the field
   // takes what it can get vertically rather than copying the desktop shape.
   const height = Math.floor(Math.min(available, MAX_FIELD_HEIGHT / PIXEL, width * 2.3));
@@ -167,7 +177,11 @@ function brickColour(row: number): string {
   return palette[row % palette.length]!;
 }
 
-/** A bevelled block: flat fill, one lit edge, one shadowed edge. One pixel each. */
+/**
+ * A brick the way the handset drew them: a hard black outline, a flat face, a
+ * lit top edge and a shadowed bottom one, and a pair of notches cut into the
+ * middle so it reads as a moulded object rather than a rectangle of colour.
+ */
 function block(
   ctx: CanvasRenderingContext2D,
   x: number,
@@ -176,14 +190,82 @@ function block(
   height: number,
   colour: string,
 ): void {
-  ctx.fillStyle = colour;
+  if (width < 3 || height < 3) {
+    ctx.fillStyle = colour;
+    ctx.fillRect(x, y, width, height);
+    return;
+  }
+  ctx.fillStyle = OUTLINE;
   ctx.fillRect(x, y, width, height);
-  ctx.fillStyle = shade(colour, 0.42);
-  ctx.fillRect(x, y, width, 1);
+  ctx.fillStyle = colour;
+  ctx.fillRect(x + 1, y + 1, width - 2, height - 2);
+  ctx.fillStyle = shade(colour, 0.4);
+  ctx.fillRect(x + 1, y + 1, width - 2, 1);
+  ctx.fillStyle = shade(colour, -0.38);
+  ctx.fillRect(x + 1, y + height - 2, width - 2, 1);
+
+  if (height >= 6 && width >= 10) {
+    ctx.fillStyle = shade(colour, -0.45);
+    const centre = Math.round(x + width / 2);
+    for (const offset of [-4, 1]) {
+      ctx.fillRect(centre + offset, y + 2, 2, height - 4);
+    }
+    ctx.fillStyle = shade(colour, 0.22);
+    for (const offset of [-2, 3]) {
+      ctx.fillRect(centre + offset, y + 2, 1, height - 4);
+    }
+  }
+}
+
+/** The stone wall behind the play area: offset courses with mortar between them. */
+function drawStone(ctx: CanvasRenderingContext2D, width: number, height: number): void {
+  // Clipped to the field: a course is wider than the remainder at the edges,
+  // so without this the last block of every row spills into the margin and
+  // lands on top of the stat panels.
+  ctx.save();
+  ctx.beginPath();
+  ctx.rect(0, 0, width, height);
+  ctx.clip();
+  ctx.fillStyle = STONE;
+  ctx.fillRect(0, 0, width, height);
+  const courseHeight = 13;
+  const courseWidth = 34;
+  for (let row = 0, y = 0; y < height; row += 1, y += courseHeight) {
+    const stagger = (row % 2) * Math.round(courseWidth / 2);
+    for (let x = -stagger; x < width; x += courseWidth) {
+      ctx.strokeStyle = STONE_MORTAR;
+      ctx.lineWidth = 1;
+      ctx.strokeRect(x + 0.5, y + 0.5, courseWidth - 1, courseHeight - 1);
+      ctx.fillStyle = STONE_LIGHT;
+      ctx.fillRect(x + 1, y + 1, courseWidth - 2, 1);
+    }
+  }
+  ctx.restore();
+}
+
+/** Yellow and black diagonal hazard tape, running the height of the field. */
+function drawRail(ctx: CanvasRenderingContext2D, x: number, y: number, height: number): void {
+  ctx.save();
+  ctx.beginPath();
+  ctx.rect(x, y, RAIL_WIDTH, height);
+  ctx.clip();
+  ctx.fillStyle = RAIL_YELLOW;
+  ctx.fillRect(x, y, RAIL_WIDTH, height);
+  ctx.fillStyle = OUTLINE;
+  const step = 10;
+  for (let offset = -height; offset < height + RAIL_WIDTH; offset += step) {
+    ctx.beginPath();
+    ctx.moveTo(x, y + offset);
+    ctx.lineTo(x + RAIL_WIDTH, y + offset - RAIL_WIDTH);
+    ctx.lineTo(x + RAIL_WIDTH, y + offset - RAIL_WIDTH + step / 2);
+    ctx.lineTo(x, y + offset + step / 2);
+    ctx.closePath();
+    ctx.fill();
+  }
+  ctx.restore();
+  ctx.fillStyle = OUTLINE;
   ctx.fillRect(x, y, 1, height);
-  ctx.fillStyle = shade(colour, -0.4);
-  ctx.fillRect(x, y + height - 1, width, 1);
-  ctx.fillRect(x + width - 1, y, 1, height);
+  ctx.fillRect(x + RAIL_WIDTH - 1, y, 1, height);
 }
 
 function drawBrick(ctx: CanvasRenderingContext2D, brick: Brick): void {
@@ -209,7 +291,7 @@ function drawBrick(ctx: CanvasRenderingContext2D, brick: Brick): void {
     // Grows back from the middle outwards, in whole pixels.
     const inset = Math.round((height / 2) * (1 - growth));
     if (height - inset * 2 < 2) return;
-    block(ctx, x, y + inset, width, height - inset * 2, shade(colour, -0.25 + growth * 0.25));
+    block(ctx, x, y + inset, width, height - inset * 2, shade(colour, -0.2 + growth * 0.2));
     return;
   }
 
@@ -219,7 +301,7 @@ function drawBrick(ctx: CanvasRenderingContext2D, brick: Brick): void {
 function drawLives(ctx: CanvasRenderingContext2D): void {
   const size = 3;
   for (let index = 0; index < game.lives; index += 1) {
-    block(ctx, 5 + index * (size + 3), game.field.height - size - 5, size, size, PADDLE_INK);
+    block(ctx, 5 + index * (size + 3), game.field.height - size - 8, size, size, PADDLE_BLUE);
   }
 }
 
@@ -294,36 +376,55 @@ function draw(now: number): void {
   const jolt = shake > 0 ? Math.round((Math.random() - 0.5) * shake) : 0;
   ctx.translate(offsetX + jolt, offsetY);
 
-  // The screen: a flat LCD panel with a hard one-pixel bezel, like a device cutout.
-  ctx.fillStyle = FIELD_BG;
-  ctx.fillRect(0, 0, field.width, field.height);
-  ctx.strokeStyle = BEZEL;
-  ctx.lineWidth = 1;
-  ctx.strokeRect(0.5, 0.5, field.width - 1, field.height - 1);
+  // The screen: a stone wall with hazard rails down both sides. The rails sit
+  // just outside the playable rectangle, so they read as the walls the ball
+  // bounces off without the physics needing to know they exist.
+  drawStone(ctx, field.width, field.height);
+  drawRail(ctx, -RAIL_WIDTH, 0, field.height);
+  drawRail(ctx, field.width, 0, field.height);
+  ctx.fillStyle = OUTLINE;
+  ctx.fillRect(-RAIL_WIDTH, -1, field.width + RAIL_WIDTH * 2, 1);
 
   ctx.save();
   ctx.beginPath();
-  ctx.rect(1, 1, field.width - 2, field.height - 2);
+  ctx.rect(0, 0, field.width, field.height);
   ctx.clip();
 
   for (const brick of game.bricks) drawBrick(ctx, brick);
 
   // A square ball, drawn on the pixel grid. No trail and no glow: neither
   // existed on the handset, and both fight the flat look.
-  const size = Math.max(2, Math.round(ball.radius * 1.6));
-  ctx.fillStyle = INK;
-  ctx.fillRect(Math.round(ball.x - size / 2), Math.round(ball.y - size / 2), size, size);
+  const size = Math.max(3, Math.round(ball.radius * 1.7));
+  const ballX = Math.round(ball.x - size / 2);
+  const ballY = Math.round(ball.y - size / 2);
+  ctx.fillStyle = BALL_INK;
+  ctx.fillRect(ballX, ballY, size, size);
+  ctx.fillStyle = "#8d8d8d";
+  ctx.fillRect(ballX, ballY, size - 1, 1);
 
   // The paddle is the one steel object on screen, so it reads as the thing you hold.
   const paddleY = Math.round(paddle.y);
   const paddleX = Math.round(paddle.x);
   const paddleW = Math.round(paddle.width);
   const paddleH = Math.max(3, Math.round(paddle.height));
-  block(ctx, paddleX, paddleY, paddleW, paddleH, PADDLE_INK);
+  // The strip under the paddle: cross it and the ball is gone. A wordless way
+  // to say where the floor is before anyone finds out the hard way.
+  ctx.fillStyle = DANGER;
+  ctx.fillRect(0, field.height - 4, field.width, 4);
+  ctx.fillStyle = OUTLINE;
+  ctx.fillRect(0, field.height - 5, field.width, 1);
+
+  // The paddle is the one blue thing on screen, so it reads as the thing you hold.
+  ctx.fillStyle = OUTLINE;
+  ctx.fillRect(paddleX, paddleY, paddleW, paddleH);
+  ctx.fillStyle = PADDLE_BLUE;
+  ctx.fillRect(paddleX + 1, paddleY + 1, paddleW - 2, paddleH - 2);
+  ctx.fillStyle = PADDLE_LIGHT;
+  ctx.fillRect(paddleX + 2, paddleY + 1, paddleW - 4, 1);
 
   // In attract the paddle blinks, which is the only invitation the screen makes.
   if (game.phase === "attract" && !reducedMotion && Math.floor(now / 420) % 2 === 0) {
-    ctx.fillStyle = FIELD_BG;
+    ctx.fillStyle = PADDLE_LIGHT;
     ctx.fillRect(paddleX + 1, paddleY + 1, paddleW - 2, paddleH - 2);
   }
 
@@ -333,7 +434,7 @@ function draw(now: number): void {
   // legible without a word of copy.
   const sinceLevel = game.clock - game.levelStartedAt;
   if (game.level > 1 && sinceLevel < 600 && !reducedMotion && Math.floor(sinceLevel / 100) % 2 === 0) {
-    ctx.fillStyle = "#20241d1f";
+    ctx.fillStyle = "#ffffff3d";
     ctx.fillRect(0, 0, field.width, field.height);
   }
 
@@ -341,7 +442,7 @@ function draw(now: number): void {
   // dims and the pause mark sits in the middle of it, so the state is obvious
   // from wherever the player's eyes were when they hit the key.
   if (game.paused) {
-    ctx.fillStyle = "#c3cdb4d6";
+    ctx.fillStyle = "#c6c6c6d6";
     ctx.fillRect(0, 0, field.width, field.height);
     const barHeight = Math.max(10, Math.round(field.height * 0.06));
     const barWidth = Math.max(3, Math.round(barHeight * 0.32));
@@ -354,7 +455,7 @@ function draw(now: number): void {
         centreY - Math.round(barHeight / 2),
         barWidth,
         barHeight,
-        PADDLE_INK,
+        PADDLE_BLUE,
       );
     }
   }
