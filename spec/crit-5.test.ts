@@ -284,6 +284,22 @@ describe("a fast ball still collides", () => {
 });
 
 describe("pausing is not a way to cheat", () => {
+  it("resumes on a press, so the paused screen is not a dead end", async () => {
+    const { window } = await loadPage();
+    const handle = (window as unknown as { __brickbreaker?: { game: Game } }).__brickbreaker;
+
+    window.dispatchEvent(new window.MouseEvent("pointermove", { clientX: 120, bubbles: true }));
+    handle!.game.phase = "playing";
+    window.dispatchEvent(new window.KeyboardEvent("keydown", { key: "Escape", bubbles: true }));
+    expect(handle?.game.paused, "Escape did not pause").toBe(true);
+
+    window.dispatchEvent(new window.MouseEvent("pointerdown", { clientX: 120, bubbles: true }));
+    expect(
+      handle?.game.paused,
+      "pressing the paused screen left it paused, so a player who paused by tapping is stuck",
+    ).toBe(false);
+  });
+
   it("refuses to steer the paddle while paused", () => {
     // Otherwise: freeze the ball mid-flight, walk the paddle under it, unpause.
     const game = createGame(FIELD);
@@ -397,7 +413,7 @@ describe("the built page actually runs", () => {
 
   it("reaches the end of setup and starts the game waiting to be taken over", async () => {
     const { window } = await loadPage();
-    const handle = (window as unknown as { __overgrow?: { game: Game } }).__overgrow;
+    const handle = (window as unknown as { __brickbreaker?: { game: Game } }).__brickbreaker;
     expect(
       handle?.game.phase,
       "no game on the page, so setup() never reached the bottom",
@@ -409,7 +425,7 @@ describe("the built page actually runs", () => {
     // a pointer has to start the game. A hidden launch key would be an
     // instruction the page never gets to give.
     const { window } = await loadPage();
-    const handle = (window as unknown as { __overgrow?: { game: Game } }).__overgrow;
+    const handle = (window as unknown as { __brickbreaker?: { game: Game } }).__brickbreaker;
 
     window.dispatchEvent(new window.MouseEvent("pointermove", { clientX: 200, bubbles: true }));
     expect(

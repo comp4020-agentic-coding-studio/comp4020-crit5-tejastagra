@@ -2,7 +2,7 @@
  * A balance sensor for the design, not for the code.
  *
  * `pnpm check` can tell you the rules are implemented correctly. It cannot tell
- * you the game is winnable, and the first build of Overgrow was not: with an
+ * you the game is winnable, and the first build of this game was not: with an
  * 11s regrow, twelve bricks could never all be down at once, because one ball
  * breaks roughly 0.56 of them a second. Every test passed and the game was
  * impossible. This script is what caught that.
@@ -25,7 +25,7 @@ import type { Field, Rules } from "../src/scripts/game.ts";
  * which were screen pixels and stopped being the real numbers the moment the
  * renderer started drawing into a buffer a third of the screen's size. A sensor
  * measuring a game that no longer ships is worse than no sensor at all, so read
- * these off the running page (window.__overgrow.game.field) whenever the
+ * these off the running page (window.__brickbreaker.game.field) whenever the
  * layout changes.
  */
 const FIELD: Field = { width: 206, height: 293 };
@@ -93,8 +93,6 @@ function report(label: string, rules: Rules, field: Field = FIELD): void {
     const won = runs.filter((run) => run.phase === "won");
     const lost = runs.filter((run) => run.phase === "lost").length;
     const stuck = runs.length - won.length - lost;
-    const times = won.map((run) => run.seconds).sort((a, b) => a - b);
-    const median = times.length ? `${times[Math.floor(times.length / 2)]}s` : "-";
     const longest = Math.max(...runs.map((run) => run.seconds));
     const closest = Math.max(...runs.filter((run) => run.phase !== "won").map((run) => run.peak), 0);
     const wall = runs[0]?.peak ?? 0;

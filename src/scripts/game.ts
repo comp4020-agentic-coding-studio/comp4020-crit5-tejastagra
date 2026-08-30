@@ -1,5 +1,5 @@
 /**
- * The rules of Overgrow, with no DOM anywhere in the file.
+ * The rules of Brick Breaker Remastered, with no DOM anywhere in the file.
  *
  * Everything here is a plain function over plain state, so the spec tests can
  * run a whole game from serve to ending in a couple of milliseconds without a

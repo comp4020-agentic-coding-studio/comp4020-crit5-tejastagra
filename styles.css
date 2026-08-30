@@ -6,7 +6,7 @@
   --bezel: #141414;
   --ink: #141414;
   --ink-soft: #6a6a6a;
-  --mono: "Courier New", ui-monospace, monospace;
+  --ui: system-ui, -apple-system, "Segoe UI", roboto, sans-serif;
   --field-left: 0px;
   --field-top: 0px;
   --field-width: 0px;
@@ -27,7 +27,7 @@ body {
 body {
   margin: 0;
   overflow: hidden;
-  font-family: var(--mono);
+  font-family: var(--ui);
   color: var(--ink);
   background: var(--shell);
   overscroll-behavior: none;
@@ -68,9 +68,13 @@ canvas {
   left: 50%;
   z-index: 1;
   margin: 0;
-  font-size: 0.7rem;
+
+  /* Tracked out like a nameplate, but not so far that the longer title wraps
+     onto a second line on a phone and creeps over the top of the field. */
+  font-size: 0.66rem;
   font-weight: 700;
-  letter-spacing: 0.34em;
+  white-space: nowrap;
+  letter-spacing: 0.18em;
   color: var(--ink-soft);
   text-transform: uppercase;
   pointer-events: none;
@@ -281,6 +285,55 @@ canvas {
 
 @media (prefers-reduced-motion: reduce) {
   .meter-fill {
+    transition: none;
+  }
+}
+
+/* Hearts, drawn on the same pixel grid as the game so the panel and the field
+   agree with each other. crispEdges keeps them from being smoothed into blobs. */
+.hearts {
+  display: flex;
+  gap: 4px;
+  margin-top: 0.35rem;
+}
+
+.heart {
+  width: 18px;
+  height: 14px;
+  fill: #c62d1f;
+  shape-rendering: crispedges;
+}
+
+.heart[data-spent="true"] {
+  fill: #b4b4b4;
+}
+
+/* Names the wall you have just reached. Reports what happened, the way the
+   ending does, so it is not an instruction. */
+.banner {
+  position: absolute;
+  top: calc(var(--field-top) + var(--field-height) * 0.32);
+  left: var(--field-left);
+  z-index: 1;
+  width: var(--field-width);
+  margin: 0;
+  font-size: 1.5rem;
+  font-weight: 700;
+  letter-spacing: 0.16em;
+  color: var(--ink);
+  text-align: center;
+  text-transform: uppercase;
+  opacity: 0;
+  transition: opacity 160ms ease;
+  pointer-events: none;
+}
+
+.banner[data-shown="true"] {
+  opacity: 1;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .banner {
     transition: none;
   }
 }

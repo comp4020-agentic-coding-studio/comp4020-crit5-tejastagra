@@ -68,12 +68,14 @@ const PADDLE_LIGHT = "#7a97ff";
 const SLOT = "#9a9a9a";
 /** Longest frame the physics will accept, so a slow frame cannot teleport the ball. */
 const MAX_FRAME_SECONDS = 1 / 30;
-const BEST_KEY = "overgrow:best";
+const BEST_KEY = "brickbreaker:best";
 
 const canvas = document.querySelector<HTMLCanvasElement>("#play");
 const outcome = document.querySelector<HTMLElement>("[data-testid='outcome']");
 const outcomePanel = document.querySelector<HTMLElement>("[data-outcome-panel]");
 const controls = document.querySelector<HTMLElement>("[data-controls]");
+const banner = document.querySelector<HTMLElement>("[data-banner]");
+const heartTemplate = document.querySelector<HTMLTemplateElement>("[data-heart]");
 const pauseButton = document.querySelector<HTMLButtonElement>("[data-action='pause']");
 const newGameButton = document.querySelector<HTMLButtonElement>("[data-action='new-game']");
 const context = canvas?.getContext("2d") ?? null;
@@ -89,6 +91,8 @@ let offsetY = 0;
 let shake = 0;
 let lastFrame = 0;
 let announced = "";
+let bannerUntil = 0;
+let shownLives = -1;
 let best = readBest();
 
 interface Best {
@@ -298,10 +302,34 @@ function drawBrick(ctx: CanvasRenderingContext2D, brick: Brick): void {
   block(ctx, x, y, width, height, colour);
 }
 
+/** The same 8x6 heart the panel uses, drawn straight onto the pixel grid. */
+const HEART_ROWS: Array<Array<[number, number]>> = [
+  [
+    [1, 2],
+    [5, 2],
+  ],
+  [[0, 8]],
+  [[0, 8]],
+  [[1, 6]],
+  [[2, 4]],
+  [[3, 2]],
+];
+
+function drawHeart(ctx: CanvasRenderingContext2D, x: number, y: number, colour: string): void {
+  ctx.fillStyle = colour;
+  HEART_ROWS.forEach((row, index) => {
+    for (const [offset, width] of row) ctx.fillRect(x + offset, y + index, width, 1);
+  });
+}
+
 function drawLives(ctx: CanvasRenderingContext2D): void {
-  const size = 3;
-  for (let index = 0; index < game.lives; index += 1) {
-    block(ctx, 5 + index * (size + 3), game.field.height - size - 8, size, size, PADDLE_BLUE);
+  for (let index = 0; index < game.baseRules.lives; index += 1) {
+    drawHeart(
+      ctx,
+      5 + index * 10,
+      game.field.height - 14,
+      index < game.lives ? "#c62d1f" : "#6f6f6f",
+    );
   }
 }
 
@@ -332,11 +360,25 @@ function put(key: string, text: string): void {
   if (node && node.textContent !== text) node.textContent = text;
 }
 
+/** Rebuilds the row of hearts, and only when the count actually changed. */
+function paintHearts(): void {
+  const node = stats.get("lives");
+  if (!node || !heartTemplate || shownLives === game.lives) return;
+  shownLives = game.lives;
+  node.replaceChildren();
+  for (let index = 0; index < game.baseRules.lives; index += 1) {
+    const heart = heartTemplate.content.firstElementChild?.cloneNode(true) as SVGElement | undefined;
+    if (!heart) break;
+    heart.setAttribute("data-spent", String(index >= game.lives));
+    node.append(heart);
+  }
+}
+
 function syncStats(): void {
   put("level", `${game.level}/${game.baseRules.levels}`);
   put("time", clock());
   put("broken", String(game.broken));
-  put("lives", "\u25AA".repeat(game.lives) || "\u2013");
+  paintHearts();
   put("down", `${game.bricks.filter((brick) => !isSolid(brick)).length}/${game.bricks.length}`);
   put("regrow", `${(game.rules.regrowMs / 1000).toFixed(0)}s`);
 
@@ -464,6 +506,20 @@ function draw(now: number): void {
   ctx.restore();
 }
 
+/** Says which wall you have just reached, briefly. */
+function showBanner(text: string, now: number): void {
+  if (!banner) return;
+  banner.textContent = text;
+  banner.dataset.shown = "true";
+  bannerUntil = now + 1500;
+}
+
+function tickBanner(now: number): void {
+  if (!banner || bannerUntil === 0 || now < bannerUntil) return;
+  bannerUntil = 0;
+  banner.dataset.shown = "false";
+}
+
 function announce(): void {
   if (!outcome) return;
   const word = game.phase === "won" ? "You win" : game.phase === "lost" ? "Game over" : "";
@@ -499,7 +555,10 @@ function frame(timestamp: number): void {
   const result = advance(game, dt);
   if (result.broke > 0) shake = Math.min(6, shake + 2.5);
   if (result.lostLife) shake = 9;
-  if (result.levelUp) shake = 5;
+  if (result.levelUp) {
+    shake = 5;
+    showBanner(`Level ${game.level}`, timestamp);
+  }
   shake *= 0.88;
   if (shake < 0.05) shake = 0;
 
@@ -513,6 +572,7 @@ function frame(timestamp: number): void {
   }
 
   announce();
+  tickBanner(timestamp);
   syncControls();
   syncStats();
   draw(timestamp);
@@ -523,10 +583,22 @@ function onPointer(event: PointerEvent): void {
   // A press that started on a button is for that button, not for the paddle.
   if (controls && event.target instanceof Node && controls.contains(event.target)) return;
 
+  // Tapping the paused screen resumes, the same way tapping the ending screen
+  // starts again. Only on a press: a stray pointermove must not unpause, or
+  // brushing the mouse would drop you back into a live ball unannounced.
+  if (game.paused) {
+    if (event.type === "pointerdown") {
+      setPaused(game, false);
+      syncControls();
+    }
+    return;
+  }
+
   if (game.phase === "won" || game.phase === "lost") {
     if (event.type === "pointerdown") {
       restart(game);
       announce();
+      showBanner(`Level ${game.level}`, performance.now());
       syncControls();
     }
     return;
@@ -576,6 +648,7 @@ function setup(): void {
   newGameButton?.addEventListener("click", () => {
     restart(game);
     announce();
+    showBanner(`Level ${game.level}`, performance.now());
     syncControls();
   });
 
@@ -583,7 +656,7 @@ function setup(): void {
 
   // A debug handle, and the only way spec/crit-5.test.ts can ask the built
   // bundle whether it actually wired itself up rather than merely loaded.
-  (window as unknown as { __overgrow?: unknown }).__overgrow = {
+  (window as unknown as { __brickbreaker?: unknown }).__brickbreaker = {
     get game() {
       return game;
     },
