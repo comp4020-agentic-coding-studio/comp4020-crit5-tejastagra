@@ -2,35 +2,34 @@
 
 ## What I built
 
-Overgrow is a brick breaker whose wall grows back, so an even chip away can
-never have the whole wall down at once. It came from the Brick Breaker on my
-first phone, a BlackBerry Bold, and the look is taken from that: a stone wall,
-hazard rails, outlined bricks, a blue paddle. The field is drawn into a buffer a
-third of the screen's size and magnified with smoothing off, because styling
-alone leaves antialiased curves underneath
+Overgrow is a brick breaker where the wall grows back while you are still
+breaking it. I picked it because Brick Breaker came on my first phone, a
+BlackBerry Bold, and I wanted the look to come from that instead of from
+whatever an agent reaches for on its own. The first version came back as a dark
+glowing canvas thing that could have been any browser game from the last five
+years, so I gave it a screenshot of the real one and made it start again
 ([18febe3](https://github.com/comp4020-agentic-coding-studio/comp4020-crit5-tejastagra/commit/18febe3)).
 
 ## The moments that mattered
 
-**A game every test approved of and nobody could win.** My spec tests pinned the
-regrow rule to the millisecond and passed, while the game was impossible: a ball
-breaks about half a brick a second, so twelve could never be down at once inside
-an eleven second regrow. Tests check the rules. Nothing checked whether
-the rules made a game. Rather than guess at new numbers I wrote a check that
-plays the real rules against a simulated player with a limited hand speed and a
-reaction delay, then swept the tuning against it. It stays out of `pnpm check`
-deliberately, because it is slow and random and a flaky red check trains you to
-ignore red checks
+**A game nobody could win.** Every test passed. The regrow rule was pinned to
+the millisecond and green, and the game was still impossible: the ball breaks
+about half a brick a second, so twelve of them were never going to be down
+together inside an eleven second regrow. I had tested the rules without once
+asking whether the rules added up to a game. Instead of guessing at new numbers
+I had it write a script that plays the real rules against a fake player with a
+slow hand and a reaction delay, and tuned against that
 ([06a2509](https://github.com/comp4020-agentic-coding-studio/comp4020-crit5-tejastagra/commit/06a2509)).
 
-**Keeping that sensor honest.** It was still measuring a 620x880 field after the
-renderer moved to low resolution, so it reported on a game that no longer ships.
-Win rate hid the real fault too. Measuring how close losing runs got exposed it:
-an average player reached eleven of twelve bricks and lost eight times out of
-eight, which reads as rigged rather than hard
+**Then I trusted that script too quickly.** It was still measuring a 620x880
+field long after the renderer had shrunk everything, so it was reporting on a
+game that no longer existed. Its win rate looked fine while an average player
+was getting to eleven of twelve bricks and losing every single time, which is a
+rigged game rather than a hard one
 ([448fb30](https://github.com/comp4020-agentic-coding-studio/comp4020-crit5-tejastagra/commit/448fb30)).
 
-**Playing it found what neither could.** Pausing still let me slide the paddle
-under the ball, and clearing a wall made the ball slower. I put both faults back
-deliberately and watched the new tests fail before trusting the fixes
+**Playing it myself found what neither caught.** I paused mid game, slid the
+paddle under the ball and unpaused. Free save every time. I reported it, then
+made it put the bug back and show me the new test going red before I accepted
+the fix
 ([5b49a07](https://github.com/comp4020-agentic-coding-studio/comp4020-crit5-tejastagra/commit/5b49a07)).
