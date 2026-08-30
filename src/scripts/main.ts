@@ -86,14 +86,18 @@ function drawBrick(ctx: CanvasRenderingContext2D, brick: Brick, now: number): vo
   const tone = hue(brick.row);
   const radius = Math.min(6, brick.height / 2);
 
-  // Every broken brick keeps a faint outline of the slot it left behind, so the
-  // wall coming back is something you watch approaching rather than discover.
+  // Every broken brick keeps an outline of the slot it left behind, so the wall
+  // coming back is something you watch approaching rather than discover. Playing
+  // it is what set these numbers: at the first, fainter values the slots read as
+  // empty background and the regrow arrived as a surprise, which is exactly the
+  // rule the game most needs a player to learn without being told.
   if (!isSolid(brick)) {
     ctx.save();
-    ctx.strokeStyle = `hsl(${tone} 45% 55% / ${8 + growth * 22}%)`;
-    ctx.lineWidth = 1;
+    ctx.strokeStyle = `hsl(${tone} 55% 62% / ${22 + growth * 45}%)`;
+    ctx.lineWidth = 1.5;
+    ctx.setLineDash(growth > 0 ? [] : [5, 4]);
     ctx.beginPath();
-    ctx.roundRect(brick.x + 0.5, brick.y + 0.5, brick.width - 1, brick.height - 1, radius);
+    ctx.roundRect(brick.x + 0.75, brick.y + 0.75, brick.width - 1.5, brick.height - 1.5, radius);
     ctx.stroke();
     ctx.restore();
     if (growth <= 0) return;
