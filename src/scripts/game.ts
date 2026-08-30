@@ -329,6 +329,11 @@ export function bounceAngle(ballX: number, paddle: Paddle): number {
 }
 
 export function movePaddle(game: Game, centreX: number): void {
+  // A paused game must not accept steering. Otherwise pause is a cheat: freeze
+  // the ball mid-flight, walk the paddle under it, unpause. Guarded here rather
+  // than in the input handler so every caller gets it, and so a test can prove
+  // it without a browser.
+  if (game.paused) return;
   game.paddle.x = clamp(centreX - game.paddle.width / 2, 0, game.field.width - game.paddle.width);
 }
 
@@ -354,16 +359,25 @@ export function takeControl(game: Game): void {
   game.phase = "serving";
 }
 
-function startLevel(game: Game, level: number): void {
+function startLevel(game: Game, level: number, carrySpeed = false): void {
   // Clearing a wall tops a life back up, short of the starting count. Without
   // it the later walls are unreachable: the balance sim had nobody at all
   // finishing three escalating walls on one shared pool of lives.
   if (level > 1) game.lives = Math.min(game.lives + 1, game.baseRules.lives);
+
+  // The ramp earned on the last wall carries over. Resetting to the new base
+  // made the ball SLOWER on levelling up: end a wall at the +35% cap and the
+  // next one opened 20% below it, which is the opposite of escalation.
+  const multiplier = carrySpeed && game.baseSpeed > 0 ? game.speed / game.baseSpeed : 1;
+
   game.level = level;
   game.rules = rulesForLevel(level, game.baseRules);
   game.bricks = layoutBricks(game.field, game.rules);
   game.baseSpeed = game.field.height * game.rules.baseSpeed;
-  game.speed = game.baseSpeed;
+  game.speed = Math.min(
+    game.baseSpeed * multiplier,
+    game.baseSpeed * game.rules.maxSpeedMultiplier,
+  );
   game.levelStartedAt = game.clock;
   game.serveAt = game.clock + game.rules.serveDelayMs;
   game.phase = "serving";
@@ -504,7 +518,7 @@ export function advance(game: Game, dt: number): StepResult {
       if (game.level >= game.baseRules.levels) {
         game.phase = "won";
       } else {
-        startLevel(game, game.level + 1);
+        startLevel(game, game.level + 1, true);
         result.levelUp = true;
       }
       return result;

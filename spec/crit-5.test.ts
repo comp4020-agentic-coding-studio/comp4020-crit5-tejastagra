@@ -26,7 +26,13 @@ import type { Field, Game } from "../src/scripts/game.ts";
 // - "one change you made came from playing the finished game", plus the process
 //   evidence in PROCESS.md and reflections/crit-5.md.
 
-const FIELD: Field = { width: 620, height: 880 };
+/**
+ * The field as it actually ships, in game pixels. This used to say 620x880,
+ * which were screen pixels and stopped being the real numbers when the renderer
+ * started drawing into a buffer a third of the screen's size. Tests against a
+ * geometry the game no longer has prove nothing about the game.
+ */
+const FIELD: Field = { width: 206, height: 293 };
 
 /** Runs the game forward on its own clock, so five simulated minutes cost nothing. */
 function play(game: Game, steps: number, onFrame?: (game: Game) => void): number {
@@ -193,6 +199,109 @@ describe("a paused game is genuinely frozen", () => {
     togglePause(game);
     play(game, 60);
     expect(game.clock, "the clock never restarted after a resume").toBeGreaterThan(0);
+  });
+});
+
+describe("the ball sharpens as the run goes on", () => {
+  it("speeds up as bricks break, up to the cap and no further", () => {
+    const game = createGame(FIELD);
+    game.phase = "playing";
+    const opening = game.speed;
+
+    for (const brick of game.bricks) {
+      brick.brokenAt = null;
+    }
+    // Break a lot of bricks by hand, which is what the ramp keys off.
+    for (let hit = 0; hit < 200; hit += 1) {
+      game.speed = Math.min(
+        game.speed * game.rules.speedGain,
+        game.baseSpeed * game.rules.maxSpeedMultiplier,
+      );
+    }
+    expect(game.speed, "the ball never sped up").toBeGreaterThan(opening);
+    expect(
+      game.speed,
+      "the ball ran past its cap, so a long run becomes unplayable rather than hard",
+    ).toBeCloseTo(game.baseSpeed * game.rules.maxSpeedMultiplier, 5);
+  });
+
+  it("does not go slower when a wall is cleared", () => {
+    // Resetting speed to the new level's base threw away the ramp earned on the
+    // previous wall, so clearing one made the ball drop about 20% and the game
+    // got easier exactly where it should get harder.
+    const game = createGame(FIELD);
+    game.phase = "playing";
+    game.speed = game.baseSpeed * game.rules.maxSpeedMultiplier;
+    const before = game.speed;
+
+    for (const brick of game.bricks) brick.brokenAt = game.clock;
+    advance(game, 0.016);
+
+    expect(game.level, "the wall did not advance").toBe(2);
+    expect(
+      game.speed,
+      "the ball slowed down on levelling up, which is the opposite of escalating",
+    ).toBeGreaterThanOrEqual(before);
+  });
+});
+
+describe("a fast ball still collides", () => {
+  it("keeps the speed cap inside the collision budget", () => {
+    // The cap is not only about staying playable. Raise it far enough and the
+    // ball covers more than a brick in a single frame, and collisions start
+    // getting skipped outright. This pins the cap to the geometry, so pushing
+    // maxSpeedMultiplier up without thinking fails here rather than in play.
+    const game = createGame(FIELD);
+    const top = game.baseSpeed * game.rules.maxSpeedMultiplier;
+    const travel = top * (1 / 30); // the longest frame advance() will accept
+    const brick = game.bricks[0]!;
+
+    expect(
+      travel,
+      "at top speed the ball crosses a whole brick in one frame, so the wall is porous",
+    ).toBeLessThan(brick.height + game.ball.radius * 2);
+  });
+
+  it("substeps a long frame rather than stepping over the wall", () => {
+    // Belt and braces for the case above: even handed a frame far longer than
+    // the game would ever pass it, the ball must land on the brick.
+    const game = createGame(FIELD);
+    game.phase = "playing";
+    game.speed = game.baseSpeed * game.rules.maxSpeedMultiplier;
+
+    const target = game.bricks[0]!;
+    game.ball.x = target.x + target.width / 2;
+    game.ball.y = target.y + target.height + game.ball.radius + 1;
+    game.ball.vx = 0;
+    game.ball.vy = -game.speed;
+
+    advance(game, 0.5);
+    expect(
+      isSolid(target),
+      "the ball passed straight through a brick, so a slow frame punches a hole in the wall",
+    ).toBe(false);
+  });
+});
+
+describe("pausing is not a way to cheat", () => {
+  it("refuses to steer the paddle while paused", () => {
+    // Otherwise: freeze the ball mid-flight, walk the paddle under it, unpause.
+    const game = createGame(FIELD);
+    game.phase = "playing";
+    movePaddle(game, 40);
+    const parked = game.paddle.x;
+
+    togglePause(game);
+    movePaddle(game, FIELD.width - 10);
+
+    expect(
+      game.paddle.x,
+      "the paddle moved while the game was paused, so pause hands out free saves",
+    ).toBe(parked);
+
+    togglePause(game);
+    movePaddle(game, FIELD.width - 10);
+    expect(game.paddle.x, "the paddle stayed stuck after resuming").not.toBe(parked);
   });
 });
 
